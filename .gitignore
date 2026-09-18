@@ -216,3 +216,19 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Galaxy local state and generated evidence
+.obsidian/plugins/*/data.json
+.env.*
+!.env.example
+*.secret
+memory/*.db*
+traces/
+tasks/
+tasks/*/runs/
+tasks/*/latest-run.json
+tasks/*/execution.jsonl
+tasks/*/full_trace.md
+tasks/*/last_*.log
+tasks/*/roles/
+benchmark-result.json

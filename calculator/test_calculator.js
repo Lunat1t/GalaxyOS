@@ -1,0 +1,10 @@
+const assert = require('node:assert/strict');
+const { calculate } = require('./logic');
+assert.equal(calculate(2, '+', 3), 5);
+assert.equal(calculate(2, '-', 3), -1);
+assert.equal(calculate(2, '*', 3), 6);
+assert.equal(calculate(8, '/', 2), 4);
+assert.equal(calculate(8, '%', 3), 2);
+assert.throws(() => calculate(1, '/', 0), RangeError);
+assert.throws(() => calculate(1, '?', 0));
+console.log('TASK-002: PASS (7 assertions)');

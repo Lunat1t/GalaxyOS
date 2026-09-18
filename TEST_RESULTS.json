@@ -1,0 +1,13 @@
+{
+  "version": "1.7.0",
+  "tested_at": "2026-09-18T06:49:42.747651+00:00",
+  "python_tests": 49,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "calculator_pass": true,
+  "duration_seconds": 5.587,
+  "live_llm_tested": false,
+  "scope": "Deterministic tests, fake agents, real subprocess fixture, real SQLite/Git/Node; no live LLM.",
+  "passed": true
+}

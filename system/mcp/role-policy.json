@@ -1,0 +1,52 @@
+{
+  "Sun": [
+    "vault.read",
+    "vault.search"
+  ],
+  "Venera": [
+    "vault.read",
+    "vault.append",
+    "filesystem.read"
+  ],
+  "Mars": [
+    "vault.read",
+    "filesystem.read",
+    "git.diff"
+  ],
+  "Ceres": [
+    "vault.read",
+    "vault.search",
+    "filesystem.read"
+  ],
+  "Earth": [
+    "vault.read",
+    "filesystem.read",
+    "filesystem.write",
+    "terminal.run",
+    "git.diff"
+  ],
+  "Neptun": [
+    "filesystem.read",
+    "filesystem.write",
+    "terminal.run",
+    "git.diff"
+  ],
+  "Moon": [
+    "filesystem.read",
+    "terminal.run",
+    "git.diff"
+  ],
+  "Mercury": [
+    "vault.read",
+    "filesystem.read",
+    "git.diff",
+    "git.status"
+  ],
+  "Reader": [
+    "vault.read",
+    "vault.search",
+    "filesystem.read",
+    "git.diff",
+    "git.status"
+  ]
+}

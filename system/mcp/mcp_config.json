@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "obsidian_vault": {
+      "command": "node",
+      "args": ["./system/mcp/obsidian_bridge.js"]
+    }
+  }
+}

@@ -1,0 +1,225 @@
+{
+  "main": {
+    "id": "deb3b99a690f6b28",
+    "type": "split",
+    "children": [
+      {
+        "id": "9e39695064266c39",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "19a6968e253a8372",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "inbox/test_ping.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "test_ping"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "915d709e7c2dacf3",
+    "type": "split",
+    "children": [
+      {
+        "id": "39b016c77e085cb1",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "53e8a77698565711",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Файловый менеджер"
+            }
+          },
+          {
+            "id": "3b1888546e7024cc",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Поиск"
+            }
+          },
+          {
+            "id": "39e3f31ed9042638",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-bookmark",
+              "title": "Закладки"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "4ef9c234d2952c9f",
+    "type": "split",
+    "children": [
+      {
+        "id": "a3ee6b0d722f2f68",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "51af0a678e055569",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "tasks/task-002.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Обратные ссылки"
+            }
+          },
+          {
+            "id": "19ba877bf491f1dc",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "tasks/task-002.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Исходящие ссылки"
+            }
+          },
+          {
+            "id": "33dbc9818809c2f1",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Теги"
+            }
+          },
+          {
+            "id": "df7db08bc998cfa0",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "Все свойства"
+            }
+          },
+          {
+            "id": "88fd89bc2593c547",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "tasks/task-002.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Структура"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Меню быстрого перехода": false,
+      "graph:Граф": false,
+      "canvas:Создать новый холст": false,
+      "daily-notes:Сегодняшняя заметка": false,
+      "templates:Вставить шаблон": false,
+      "command-palette:Открыть палитру команд": false,
+      "bases:Создать новую базу": false
+    }
+  },
+  "active": "19a6968e253a8372",
+  "lastOpenFiles": [
+    "__pycache__/solar.cpython-314.pyc.140654240161088",
+    "memory/index.db-shm",
+    "memory/index.db-wal",
+    "tests/__pycache__/test_v17.cpython-314.pyc.140194917017344",
+    "system/agent_core/__pycache__/agents.cpython-314.pyc.140486980065904",
+    "__pycache__/solar.cpython-314.pyc.140486976543904",
+    "__pycache__/chat.cpython-314.pyc.140486976543904",
+    "__pycache__/chat.cpython-313.pyc",
+    "system/agent_core/__pycache__/sandbox.cpython-313.pyc",
+    "system/agent_core/__pycache__/runtime.cpython-313.pyc",
+    "system/agent_core/__pycache__/memory.cpython-313.pyc",
+    "templates/daily-template.md",
+    "templates/agent-template.md",
+    "docs/history-v0.5-v1.6.md",
+    "tasks/task-012.md",
+    "system/mcp/README.md",
+    "system/agents/mercury.md",
+    "system/agents/mars.md",
+    "system/agents/earth.md",
+    "system/agents/ceres.md",
+    "tasks/task-001.md",
+    "system/agents/venera.md",
+    "system/agents/neptun.md",
+    "system/agents/moon.md",
+    "galaxy/system/agents/earth.md",
+    "tasks/task-002.md",
+    "inbox/test_ping.md",
+    "system/agents/galaxy/templates/task_template.md",
+    "system/agents/galaxy/templates/daily_template.md",
+    "system/agents/galaxy/tasks/task-001.md",
+    "system/agents/galaxy/daily/2026-09-16.md"
+  ]
+}
