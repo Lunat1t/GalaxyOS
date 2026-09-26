@@ -8,7 +8,7 @@ import subprocess
 import sys
 import time
 import unittest
-from system.agent_core.storage import VERSION
+from galaxy_core.engine.storage import VERSION
 ROOT=Path(__file__).resolve().parent
 
 def main():

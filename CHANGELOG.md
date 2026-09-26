@@ -1,3 +1,11 @@
+# 3.2.1-alpha.2-contextbench — Codex context integration
+
+- Import the Context OS core, Attention Engine, living memory, ContextBench adapter, configuration and regression tests from the supplied release archive.
+- Add `codex_context.py` for fresh context packets and durable, project-scoped chat notes, corrections and retractions.
+- Make Galaxy the default external context source through `AGENTS.md`; keep Codex as executor and distinguish retrieved evidence from user instructions.
+- Keep chat memory and generated state local and ignored by Git. Preserve legacy entry points for compatibility.
+- README files are unchanged; personal vault content from the archive is not imported.
+
 # 1.7.1 — Interactive Core Chat
 
 - Интерактивный диалоговый интерфейс REPL (`chat.py` и `solar chat`) для прямого общения с ядром Galaxy и его 8 планетными агентами через провайдеры `codex` (`codex exec`) и `antigravity` (`agy -p`).

@@ -1,0 +1,306 @@
+{
+  "name": "product",
+  "title": "Продуктовое исследование / Product Discovery",
+  "description": "Профиль для исследования продуктовых гипотез, целевой аудитории, ключевой ценности, метрик успеха и пользовательского опыта.",
+  "keywords": [
+    "продукт", "product", "пользователи", "рынок", "метрики", "онбординг", "ux",
+    "бизнес", "монетизация", "лендинг", "клиент", "конверсия", "custdev", "mvp",
+    "feature", "фича", "интерфейс", "юзер", "аудитория", "воронка", "retention",
+    "сайт", "веб", "веб-сайт", "портал", "платформа", "магазин"
+  ],
+  "match_patterns": [
+    "^(сделай|создай|разработай|хочу|нужно|запусти)\\s+(продукт|фичу|сервис|лендинг|стартап|mvp|сайт|веб|платформу)",
+    "(пользователи|клиенты|рынок|монетизация|конверсия|лендинг)"
+  ],
+  "default_depth": "deep",
+  "categories": {
+    "quick": [
+      "value_proposition", "target_audience", "user_problem", "core_features",
+      "success_metrics", "competitors", "scope_boundaries", "go_to_market"
+    ],
+    "deep": [
+      "value_proposition", "target_audience", "user_problem", "core_features",
+      "success_metrics", "competitors", "scope_boundaries", "go_to_market",
+      "user_journey", "pricing_model", "data_privacy", "integrations",
+      "release_timeline", "autonomy", "deliverables", "user_retention"
+    ],
+    "exhaustive": [
+      "value_proposition", "target_audience", "user_problem", "core_features",
+      "success_metrics", "competitors", "scope_boundaries", "go_to_market",
+      "user_journey", "pricing_model", "data_privacy", "integrations",
+      "release_timeline", "autonomy", "deliverables", "user_retention",
+      "growth_channels", "compliance"
+    ]
+  },
+  "dependencies": [
+    ["target_audience", "user_problem"],
+    ["user_problem", "value_proposition"],
+    ["value_proposition", "core_features"],
+    ["core_features", "user_journey"],
+    ["core_features", "scope_boundaries"],
+    ["core_features", "success_metrics"],
+    ["user_problem", "competitors"],
+    ["competitors", "pricing_model"],
+    ["target_audience", "data_privacy"],
+    ["core_features", "integrations"],
+    ["success_metrics", "release_timeline"],
+    ["core_features", "deliverables"],
+    ["release_timeline", "go_to_market"],
+    ["go_to_market", "growth_channels"],
+    ["data_privacy", "compliance"]
+  ],
+  "questions": {
+    "target_audience": {
+      "id": "Q_PROD_AUDIENCE",
+      "category": "target_audience",
+      "text": "Кто основной сегмент пользователей и каков их контекст использования продукта?",
+      "why": "Понимание сегмента определяет язык интерфейса, сценарии и приоритеты функций.",
+      "alternatives": [
+        {"id": "A", "text": "Индивидуальные профессионалы и специалисты (B2C / Prosumer)", "description": "Самостоятельные эксперты"},
+        {"id": "B", "text": "Команды и малый бизнес (B2B SaaS)", "description": "Групповое использование"},
+        {"id": "C", "text": "Массовые потребители без технической экспертизы", "description": "Широкий B2C рынок"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Фокус на профессионалах позволяет быстрее подтвердить продуктовые гипотезы.",
+      "allow_custom": true
+    },
+    "user_problem": {
+      "id": "Q_PROD_PROBLEM",
+      "category": "user_problem",
+      "text": "Какую главную «боль» или незакрытую потребность пользователя решает продукт?",
+      "why": "Продукт без очевидной ценности не удерживает пользователей.",
+      "alternatives": [
+        {"id": "A", "text": "Существующие решения слишком сложны и перегружены", "description": "Упрощение опыта"},
+        {"id": "B", "text": "Высокие затраты времени на рутинную координацию", "description": "Экономия времени"},
+        {"id": "C", "text": "Отсутствие гибкой кастомизации под специфические процессы", "description": "Гибкость"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Простота использования — ключевой драйвер первого внедрения.",
+      "allow_custom": true
+    },
+    "value_proposition": {
+      "id": "Q_PROD_VALUE_PROP",
+      "category": "value_proposition",
+      "text": "В чём уникальное ценностное предложение (UVP) продукта?",
+      "why": "Чёткое UVP отличает продукт от аналогов на рынке.",
+      "alternatives": [
+        {"id": "A", "text": "Автономная работа с локальными данными и полный контроль", "description": "Локальность и приватность"},
+        {"id": "B", "text": "Максимальная скорость получения результата в 1 клик", "description": "Скорость"},
+        {"id": "C", "text": "Глубокая интеграция в существующие рабочие инструменты", "description": "Бесшовность"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Локальный контроль и автономность дают мощное конкурентное преимущество.",
+      "allow_custom": true
+    },
+    "core_features": {
+      "id": "Q_PROD_FEATURES",
+      "category": "core_features",
+      "text": "Какие 2–3 функции составляют неделимое ядро продукта?",
+      "why": "Ограничение на старте защищает от расползания скоупа и гарантирует запуск.",
+      "alternatives": [
+        {"id": "A", "text": "Умная форма ввода, движок обработки и структурированный экспорт", "description": "Ядро обработки данных"},
+        {"id": "B", "text": "Интерактивный дашборд и визуализация метрик", "description": "Аналитическое ядро"},
+        {"id": "C", "text": "Агентный ассистент с пошаговым диалогом", "description": "Диалоговое ядро"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Ядро ввода, обработки и экспорта проверяемо и самодостаточно.",
+      "allow_custom": true
+    },
+    "user_journey": {
+      "id": "Q_PROD_JOURNEY",
+      "category": "user_journey",
+      "text": "Как выглядит путь пользователя (Happy Path) от знакомства до «вау-эффекта»?",
+      "why": "Короткий путь к первому результату критичен для удержания пользователя.",
+      "alternatives": [
+        {"id": "A", "text": "Мгновенный запуск без обязательной регистрации -> быстрый результат за 60 секунд", "description": "Быстрый онбординг"},
+        {"id": "B", "text": "Пошаговый мастер настройки с готовыми шаблонами", "description": "Шаблонный старт"},
+        {"id": "C", "text": "Импорт существующих данных пользователя и автогенерация", "description": "Импорт"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Минимум препятствий на первом шаге максимизирует конверсию.",
+      "allow_custom": true
+    },
+    "competitors": {
+      "id": "Q_PROD_COMPETITORS",
+      "category": "competitors",
+      "text": "Как пользователи справляются сейчас без вашего продукта (альтернативы / конкуренты)?",
+      "why": "Понимание привычек пользователей помогает спроектировать более удобную миграцию.",
+      "alternatives": [
+        {"id": "A", "text": "Используют комбинацию электронных таблиц и блокнотов", "description": "Таблицы и заметки"},
+        {"id": "B", "text": "Используют громоздкие корпоративные платформы", "description": "Тяжёлый софт"},
+        {"id": "C", "text": "Не решают задачу систематически, накапливая ошибки", "description": "Хаос"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Замена хаотичных таблиц понятным инструментом даёт очевидный выигрыш.",
+      "allow_custom": true
+    },
+    "scope_boundaries": {
+      "id": "Q_PROD_BOUNDARIES",
+      "category": "scope_boundaries",
+      "text": "Какие продуктовые возможности мы сознательно исключаем из MVP?",
+      "why": "Осознанный отказ от второстепенного спасает сроки запуска.",
+      "alternatives": [
+        {"id": "A", "text": "Совместная работа в реальном времени, мобильные клиенты, биллинг", "description": "Фокус на ядре"},
+        {"id": "B", "text": "Сложная система прав доступа и ролей", "description": "Без RBAC на старте"},
+        {"id": "C", "text": "Внешние публичные API и плагины сторонних разработчиков", "description": "Без экосистемы"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Отказ от совместной работы и мобильных клиентов позволяет выпустить MVP в разы быстрее.",
+      "allow_custom": true
+    },
+    "success_metrics": {
+      "id": "Q_PROD_METRICS",
+      "category": "success_metrics",
+      "text": "Какие ключевые метрики (North Star / OKR) определят успех продукта?",
+      "why": "Метрики позволяют объективно судить о востребованности решения.",
+      "alternatives": [
+        {"id": "A", "text": "Доля успешных завершений пользовательских сессий (>80%)", "description": "Успешность сессий"},
+        {"id": "B", "text": "Регулярный возврат пользователей (Day 7 / Day 30 retention)", "description": "Удержание"},
+        {"id": "C", "text": "Сокращение времени решения целевой задачи в 3 раза", "description": "Эффективность"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Качественное завершение первого сценария первично для любого нового продукта.",
+      "allow_custom": true
+    },
+    "go_to_market": {
+      "id": "Q_PROD_GTM",
+      "category": "go_to_market",
+      "text": "Как первые пользователи узнают о продукте и получат доступ?",
+      "why": "Канал дистрибуции определяет начальные требования к упаковке продукта.",
+      "alternatives": [
+        {"id": "A", "text": "Прямое тестирование на узкой группе ранних пользователей (Alpha)", "description": "Закрытая Alpha"},
+        {"id": "B", "text": "Публикация в профильных сообществах и Open Source", "description": "Open Source сообщество"},
+        {"id": "C", "text": "Внутреннее использование в рамках существующей команды", "description": "Внутренний запуск"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Закрытая группа ранних пользователей даёт качественную обратную связь без репутационных рисков.",
+      "allow_custom": true
+    },
+    "pricing_model": {
+      "id": "Q_PROD_PRICING",
+      "category": "pricing_model",
+      "text": "Какова модель доступности / монетизации продукта?",
+      "why": "Модель влияет на архитектуру учётных записей и ограничений функционала.",
+      "alternatives": [
+        {"id": "A", "text": "Полностью бесплатный локальный инструмент (Open Source)", "description": "Бесплатно и открыто"},
+        {"id": "B", "text": "Freemium: бесплатное базовое ядро + платные продвинутые функции", "description": "Freemium"},
+        {"id": "C", "text": "Подписка для команд / разовые лицензии", "description": "Коммерческая лицензия"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Для первой версии бесплатный локальный инструмент ускоряет адаптацию.",
+      "allow_custom": true
+    },
+    "data_privacy": {
+      "id": "Q_PROD_PRIVACY",
+      "category": "data_privacy",
+      "text": "Как продукт должен обрабатывать данные пользователей и обеспечивать конфиденциальность?",
+      "why": "Доверие пользователей напрямую зависит от прозрачности работы с их данными.",
+      "alternatives": [
+        {"id": "A", "text": "Все данные остаются локально на устройстве пользователя", "description": "Local-first"},
+        {"id": "B", "text": "Облачное хранение с шифрованием на стороне клиента", "description": "E2E шифрование"},
+        {"id": "C", "text": "Анонимная телеметрия только по явному согласию (opt-in)", "description": "Opt-in аналитика"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Принцип Local-first гарантирует максимальное доверие и исключает утечки.",
+      "allow_custom": true
+    },
+    "integrations": {
+      "id": "Q_PROD_INTEGRATIONS",
+      "category": "integrations",
+      "text": "С какими сторонними инструментами необходима интеграция на старте?",
+      "why": "Интеграции расширяют возможности продукта, но увеличивают сложность.",
+      "alternatives": [
+        {"id": "A", "text": "Без сторонних интеграций; стандартные форматы файлов (JSON / Markdown)", "description": "Файловый обмен"},
+        {"id": "B", "text": "Интеграция с мессенджерами (Telegram / Slack)", "description": "Мессенджеры"},
+        {"id": "C", "text": "Экспорт в облачные хранилища или Notion/Obsidian", "description": "Базы знаний"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Стандартные форматы файлов обеспечивают универсальную совместимость без внешних зависимостей.",
+      "allow_custom": true
+    },
+    "release_timeline": {
+      "id": "Q_PROD_TIMELINE",
+      "category": "release_timeline",
+      "text": "Какие этапы и сроки выпуска первой рабочей версии?",
+      "why": "Реалистичные этапы предотвращают выгорание и затягивание разработки.",
+      "alternatives": [
+        {"id": "A", "text": "Итеративные недельные спринты с демонстрацией рабочего функционала", "description": "Короткие спринты"},
+        {"id": "B", "text": "Быстрый хакатон-прототип за 2–3 дня", "description": "Экспресс-демо"},
+        {"id": "C", "text": "Месячный цикл тщательной проработки и тестирования", "description": "Тщательный релиз"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Итеративный подход позволяет корректировать курс по мере получения обратной связи.",
+      "allow_custom": true
+    },
+    "autonomy": {
+      "id": "Q_PROD_AUTONOMY",
+      "category": "autonomy",
+      "text": "Какая степень самостоятельности допустима при принятии продуктовых решений?",
+      "why": "Определяет границы между автоматическими решениями и согласованием с владельцем продукта.",
+      "alternatives": [
+        {"id": "A", "text": "Агент предлагает варианты и обоснование, утверждает человек", "description": "Человек утверждает"},
+        {"id": "B", "text": "Агент автономно выбирает наилучшую UX-практику по умолчанию", "description": "Автономный UX"},
+        {"id": "C", "text": "Строгое следование исходному ТЗ без инициативных предложений", "description": "Строго по ТЗ"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Баланс агентных предложений и человеческого утверждения минимизирует ошибки.",
+      "allow_custom": true
+    },
+    "deliverables": {
+      "id": "Q_PROD_DELIVERABLES",
+      "category": "deliverables",
+      "text": "Что должно входить в финальную сдачу продуктового этапа?",
+      "why": "Определяет состав продуктовых артефактов для передачи в разработку.",
+      "alternatives": [
+        {"id": "A", "text": "Работающий прототип, спецификация пользовательских сценариев и метрики", "description": "Прототип и спецификация"},
+        {"id": "B", "text": "Только рабочий код первой версии", "description": "Только код"},
+        {"id": "C", "text": "Презентация, дорожная карта и описание продукта", "description": "Roadmap и концепт"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Прототип вместе со спецификацией сценариев даёт однозначную основу для инженеров.",
+      "allow_custom": true
+    },
+    "user_retention": {
+      "id": "Q_PROD_RETENTION",
+      "category": "user_retention",
+      "text": "Что заставит пользователя возвращаться к продукту снова и снова?",
+      "why": "Повторное использование формирует долгосрочную ценность продукта.",
+      "alternatives": [
+        {"id": "A", "text": "Накопление персональной базы знаний и истории действий", "description": "Накопительный эффект"},
+        {"id": "B", "text": "Автоматические регулярные напоминания и отчёты", "description": "Периодическая ценность"},
+        {"id": "C", "text": "Постоянная экономия времени в ежедневных рабочих процессах", "description": "Ежедневная утилита"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Накопление ценных персональных данных создает высокий барьер для отказа от продукта.",
+      "allow_custom": true
+    },
+    "growth_channels": {
+      "id": "Q_PROD_GROWTH",
+      "category": "growth_channels",
+      "text": "Каковы гипотезы органического роста продукта (Product-Led Growth)?",
+      "why": "Встроенные механизмы распространения снижают затраты на привлечение.",
+      "alternatives": [
+        {"id": "A", "text": "Сарафанное радио за счёт решения острой проблемы и виральных отчётов", "description": "Виральность результатов"},
+        {"id": "B", "text": "Публичные шаблоны и материалы, созданные пользователями", "description": "Контент пользователей"},
+        {"id": "C", "text": "Интеграция с каталогами расширений и маркетплейсами", "description": "Каталоги плагинов"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Удобный экспорт результатов стимулирует естественное распространение.",
+      "allow_custom": true
+    },
+    "compliance": {
+      "id": "Q_PROD_COMPLIANCE",
+      "category": "compliance",
+      "text": "Есть ли регуляторные или отраслевые требования (GDPR, 152-ФЗ, лицензии)?",
+      "why": "Юридические ограничения должны учитываться на этапе проектирования структуры данных.",
+      "alternatives": [
+        {"id": "A", "text": "Данные не передаются третьим лицам, полное соответствие локальным нормам", "description": "Полный комплаенс"},
+        {"id": "B", "text": "Продукт исключительно для личного / внутреннего использования", "description": "Внутреннее использование"},
+        {"id": "C", "text": "Требуется специальная юридическая консультация", "description": "Уточняется"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Локальная обработка автоматически закрывает большинство рисков регуляторики.",
+      "allow_custom": true
+    }
+  }
+}

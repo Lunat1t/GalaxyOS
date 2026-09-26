@@ -1,0 +1,306 @@
+{
+  "name": "bug",
+  "title": "Диагностика и устранение бага / Bug Triage & Fix",
+  "description": "Профиль для точной локализации дефектов, сбора шагов воспроизведения, минимизации регрессионных рисков и надёжной верификации исправлений.",
+  "keywords": [
+    "баг", "ошибк", "ошибка", "сломал", "сломалось", "пада", "падает", "дефект", "crash", "fix", "defect",
+    "error", "exception", "traceback", "не работает", "починить", "регресс",
+    "исправить", "bug", "авария", "сбой", "падение", "зависает", "неправильно"
+  ],
+  "match_patterns": [
+    "^(исправь|почини|найди|устрани|разберись|исправить|починить)\\b",
+    "(traceback|exception|error|crash|падение|не работает)"
+  ],
+  "default_depth": "deep",
+  "categories": {
+    "quick": [
+      "defect_symptom", "expected_behavior", "reproduction_steps", "environment_context",
+      "affected_scope", "severity_priority", "verification_check", "fix_boundaries"
+    ],
+    "deep": [
+      "defect_symptom", "expected_behavior", "reproduction_steps", "environment_context",
+      "affected_scope", "severity_priority", "verification_check", "fix_boundaries",
+      "root_cause_hypothesis", "regression_risks", "data_integrity", "workarounds",
+      "rollback_strategy", "autonomy", "deliverables", "patch_scope"
+    ],
+    "exhaustive": [
+      "defect_symptom", "expected_behavior", "reproduction_steps", "environment_context",
+      "affected_scope", "severity_priority", "verification_check", "fix_boundaries",
+      "root_cause_hypothesis", "regression_risks", "data_integrity", "workarounds",
+      "rollback_strategy", "autonomy", "deliverables", "patch_scope",
+      "monitoring_alert", "preventative_action"
+    ]
+  },
+  "dependencies": [
+    ["defect_symptom", "expected_behavior"],
+    ["defect_symptom", "reproduction_steps"],
+    ["reproduction_steps", "environment_context"],
+    ["environment_context", "root_cause_hypothesis"],
+    ["defect_symptom", "affected_scope"],
+    ["affected_scope", "severity_priority"],
+    ["root_cause_hypothesis", "fix_boundaries"],
+    ["fix_boundaries", "regression_risks"],
+    ["root_cause_hypothesis", "patch_scope"],
+    ["regression_risks", "rollback_strategy"],
+    ["regression_risks", "data_integrity"],
+    ["defect_symptom", "workarounds"],
+    ["expected_behavior", "verification_check"],
+    ["verification_check", "deliverables"],
+    ["rollback_strategy", "monitoring_alert"],
+    ["root_cause_hypothesis", "preventative_action"]
+  ],
+  "questions": {
+    "defect_symptom": {
+      "id": "Q_BUG_SYMPTOM",
+      "category": "defect_symptom",
+      "text": "Что именно происходит при проявлении бага (симптомы, текст ошибки, код возврата)?",
+      "why": "Точное описание наблюдаемого поведения — основа для локализации причины дефекта.",
+      "alternatives": [
+        {"id": "A", "text": "Исключение (Exception/Traceback) или падение процесса с ненулевым кодом", "description": "Crash/Exception"},
+        {"id": "B", "text": "Некорректный результат вычислений или искажённые данные без падения", "description": "Логическая ошибка"},
+        {"id": "C", "text": "Зависание процесса, бесконечный цикл или утечка памяти/ресурсов", "description": "Зависание/Утечка"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Стек вызовов или сообщение об ошибке локализует место сбоя точнее всего.",
+      "allow_custom": true
+    },
+    "expected_behavior": {
+      "id": "Q_BUG_EXPECTED",
+      "category": "expected_behavior",
+      "text": "Какое поведение должно быть вместо ошибки в нормальном сценарии?",
+      "why": "Понимание ожидаемого поведения позволяет сформулировать позитивный тест приёмки.",
+      "alternatives": [
+        {"id": "A", "text": "Успешное завершение операции с возвратом ожидаемого результата", "description": "Штатный результат"},
+        {"id": "B", "text": "Корректная обработка невалидного ввода с понятным сообщением пользователю", "description": "Понятная ошибка ввода"},
+        {"id": "C", "text": "Идемпотентный пропуск операции без повторного выполнения", "description": "Идемпотентность"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Штатное выполнение без сбоев является целевым состоянием системы.",
+      "allow_custom": true
+    },
+    "reproduction_steps": {
+      "id": "Q_BUG_REPRO",
+      "category": "reproduction_steps",
+      "text": "Есть ли детерминированные шаги или команда для воспроизведения ошибки?",
+      "why": "Без воспроизводимости невозможно доказать, что фикс действительно решил проблему.",
+      "alternatives": [
+        {"id": "A", "text": "Есть точная CLI-команда или unit-тест, воспроизводящий ошибку на 100%", "description": "100% воспроизводимость"},
+        {"id": "B", "text": "Ошибка возникает периодически при определённом стечении обстоятельств", "description": "Плавающий баг"},
+        {"id": "C", "text": "Ошибка воспроизводится только на определённых входных данных", "description": "Данные-специфичный"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Наличие детерминированного сценария позволяет сразу написать регрессионный тест.",
+      "allow_custom": true
+    },
+    "environment_context": {
+      "id": "Q_BUG_ENV",
+      "category": "environment_context",
+      "text": "В каком окружении возникает баг: версия ОС, версия Python, конфигурация?",
+      "why": "Несоответствие версий или окружения часто является первопричиной дефекта.",
+      "alternatives": [
+        {"id": "A", "text": "Текущее стандартное окружение проекта (Linux, Python 3.10+)", "description": "Стандартный рантайм"},
+        {"id": "B", "text": "Специфическая ОС (macOS / Windows) или устаревшая версия Python", "description": "ОС-специфично"},
+        {"id": "C", "text": "Окружение CI/CD или автоматических агентов", "description": "CI/CD рантайм"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Фикс в стандартном окружении обеспечивает стабильность основного контура.",
+      "allow_custom": true
+    },
+    "affected_scope": {
+      "id": "Q_BUG_SCOPE",
+      "category": "affected_scope",
+      "text": "Насколько широко распространяется влияние бага (затронуты ли другие модули)?",
+      "why": "Оценка охвата помогает изолировать исправление и не сломать смежные системы.",
+      "alternatives": [
+        {"id": "A", "text": "Изолировано в одном конкретном файле / функции", "description": "Локальный баг"},
+        {"id": "B", "text": "Затрагивает несколько взаимодействующих компонентов", "description": "Межмодульный сбой"},
+        {"id": "C", "text": "Блокирует весь рабочий процесс системы (Showstopper)", "description": "Блокирующий дефект"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Локальные исправления безопаснее и быстрее всего проходят верификацию.",
+      "allow_custom": true
+    },
+    "severity_priority": {
+      "id": "Q_BUG_SEVERITY",
+      "category": "severity_priority",
+      "text": "Какова критичность бага и срочность его устранения?",
+      "why": "Критичность определяет объём привлекаемых ресурсов и глубину тестирования.",
+      "alternatives": [
+        {"id": "A", "text": "Высокая: блокирует работу ключевой функции, нужен немедленный фикс", "description": "Критический баг"},
+        {"id": "B", "text": "Средняя: функция работает с ограничениями, есть временное решение", "description": "Умеренный баг"},
+        {"id": "C", "text": "Низкая: косметический дефект или редкий краевой случай", "description": "Минорный баг"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Блокирующие дефекты требуют приоритетного устранения с регрессионным тестом.",
+      "allow_custom": true
+    },
+    "verification_check": {
+      "id": "Q_BUG_VERIFY",
+      "category": "verification_check",
+      "text": "Как именно Moon и человек убедятся, что баг полностью устранён?",
+      "why": "Критерий верификации формулирует точное условие успешного закрытия задачи.",
+      "alternatives": [
+        {"id": "A", "text": "Новый автотест воспроизводил ошибку до фикса и успешно проходит после него", "description": "Регрессионный автотест"},
+        {"id": "B", "text": "Ручная проверка запуска команды без появления ошибки", "description": "Ручной прогон"},
+        {"id": "C", "text": "Все существующие тесты в тестовом наборе проходят без регрессий", "description": "Зелёный тест-сьют"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Автотест, падавший до фикса и проходящий после, — золотой стандарт верификации.",
+      "allow_custom": true
+    },
+    "fix_boundaries": {
+      "id": "Q_BUG_BOUNDARIES",
+      "category": "fix_boundaries",
+      "text": "Каковы границы допустимого исправления (можно ли менять публичные контракты)?",
+      "why": "Исправление бага не должно случайно сломать публичный API или форматы данных.",
+      "alternatives": [
+        {"id": "A", "text": "Только внутренние правки реализации; публичный API и контракты строго неизменны", "description": "Без смены API"},
+        {"id": "B", "text": "Допускается расширение API с сохранением обратной совместимости", "description": "Расширение контрактов"},
+        {"id": "C", "text": "Требуется изменение контракта (Breaking Change)", "description": "Мажорная переделка"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Сохранение публичных контрактов защищает всех внешних потребителей.",
+      "allow_custom": true
+    },
+    "root_cause_hypothesis": {
+      "id": "Q_BUG_ROOT_CAUSE",
+      "category": "root_cause_hypothesis",
+      "text": "Какова рабочая гипотеза первопричины (Root Cause)?",
+      "why": "Устранение симптома без понимания первопричины ведёт к повторным багам.",
+      "alternatives": [
+        {"id": "A", "text": "Неучтённый краевой случай или нулевое значение (None / Empty input)", "description": "Краевой случай ввода"},
+        {"id": "B", "text": "Гонка состояний или рассинхронизация асинхронных операций", "description": "Состояние гонки"},
+        {"id": "C", "text": "Нарушение инварианта данных в базе или сериализации", "description": "Искажение данных"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Проверка граничных значений и валидация на входе решает большинство дефектов.",
+      "allow_custom": true
+    },
+    "regression_risks": {
+      "id": "Q_BUG_REGRESSION",
+      "category": "regression_risks",
+      "text": "Какие смежные сценарии могут случайно пострадать от предлагаемого изменения?",
+      "why": "Анализ рисков позволяет заранее подготовить защитные тесты для смежных областей.",
+      "alternatives": [
+        {"id": "A", "text": "Смежные модули не затронуты, риск регрессии минимален", "description": "Минимальный риск"},
+        {"id": "B", "text": "Возможно влияние на производительность или потребление памяти", "description": "Риск производительности"},
+        {"id": "C", "text": "Может измениться формат вывода для существующих клиентов", "description": "Риск формата вывода"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Минимизация влияния на смежные области гарантирует безопасный деплой.",
+      "allow_custom": true
+    },
+    "data_integrity": {
+      "id": "Q_BUG_INTEGRITY",
+      "category": "data_integrity",
+      "text": "Привёл ли баг к повреждению сохранённых пользовательских данных в БД?",
+      "why": "Если данные повреждены, одного кода недостаточно — потребуется восстановительный скрипт.",
+      "alternatives": [
+        {"id": "A", "text": "Данные в БД не затронуты, ошибка происходила только в памяти/рантайме", "description": "Данные целы"},
+        {"id": "B", "text": "Требуется одноразовый скрипт исправления некорректных записей", "description": "Нужен data-fix"},
+        {"id": "C", "text": "Необходимо проверить целостность таблиц через отдельный аудит", "description": "Нужен аудит"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Отсутствие повреждений данных позволяет сразу применить точечный патч.",
+      "allow_custom": true
+    },
+    "workarounds": {
+      "id": "Q_BUG_WORKAROUND",
+      "category": "workarounds",
+      "text": "Существует ли временный обходной путь (workaround), пока готовится полноценный фикс?",
+      "why": "Workaround позволяет разблокировать пользователей немедленно.",
+      "alternatives": [
+        {"id": "A", "text": "Да, можно передать флаг или скорректировать входные данные", "description": "Есть workaround"},
+        {"id": "B", "text": "Нет, система полностью заблокирована до применения патча", "description": "Без обходных путей"},
+        {"id": "C", "text": "Откат к предыдущей версии до выяснения причин", "description": "Откат версии"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Документирование workaround даёт пользователям немедленное решение.",
+      "allow_custom": true
+    },
+    "rollback_strategy": {
+      "id": "Q_BUG_ROLLBACK",
+      "category": "rollback_strategy",
+      "text": "Каков план отката, если исправление вызовет непредвиденные проблемы?",
+      "why": "План отката гарантирует быстрое восстановление при неудачном релизе.",
+      "alternatives": [
+        {"id": "A", "text": "Быстрый git revert коммита с фиксом без побочных эффектов", "description": "Git revert"},
+        {"id": "B", "text": "Отключение функциональности через feature flag", "description": "Feature flag"},
+        {"id": "C", "text": "Восстановление бэкапа базы данных", "description": "Восстановление БД"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Чистый точечный коммит легко откатить одной командой git revert.",
+      "allow_custom": true
+    },
+    "autonomy": {
+      "id": "Q_BUG_AUTONOMY",
+      "category": "autonomy",
+      "text": "Что агент Earth может делать при устранении бага без отдельного подтверждения?",
+      "why": "Определяет границы между автономной диагностикой и изменением файлов.",
+      "alternatives": [
+        {"id": "A", "text": "Автоматически воспроизводить и писать тесты; изменение продакшн-кода только после Human Approval", "description": "Human Approval на фикс"},
+        {"id": "B", "text": "Полная автономность при условии прохождения всех тестов", "description": "Автономный фикс"},
+        {"id": "C", "text": "Согласование каждого отдельного изменения файла", "description": "Строгий контроль"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Human Approval перед записью фикса защищает кодовую базу от случайных регрессий.",
+      "allow_custom": true
+    },
+    "deliverables": {
+      "id": "Q_BUG_DELIVERABLES",
+      "category": "deliverables",
+      "text": "Что должно входить в финальную сдачу устранения дефекта?",
+      "why": "Стандарт сдачи обеспечивает доказательность решения проблемы.",
+      "alternatives": [
+        {"id": "A", "text": "Точечный патч, регрессионный автотест и отчёт об устранении причины", "description": "Патч + тест + отчёт"},
+        {"id": "B", "text": "Только изменённый файл с исправлением", "description": "Только код"},
+        {"id": "C", "text": "Инструкция по ручной настройке конфигурации", "description": "Инструкция"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Комплект из патча, теста и отчёта даёт 100% уверенность в надёжности решения.",
+      "allow_custom": true
+    },
+    "patch_scope": {
+      "id": "Q_BUG_PATCH_SCOPE",
+      "category": "patch_scope",
+      "text": "Каков максимальный размер и объём вносимого диффа?",
+      "why": "Минимальный дифф снижает вероятность скрытых побочных эффектов.",
+      "alternatives": [
+        {"id": "A", "text": "Минимально возможный дифф (до 50 строк кода) строго в месте ошибки", "description": "Микро-патч"},
+        {"id": "B", "text": "Рефакторинг всего модуля для исключения подобного класса ошибок", "description": "Модульный рефакторинг"},
+        {"id": "C", "text": "Временный хотфикс с последующим тикетом на техдолг", "description": "Хотфикс"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Микро-патч легче всего отрецензировать и протестировать.",
+      "allow_custom": true
+    },
+    "monitoring_alert": {
+      "id": "Q_BUG_MONITORING",
+      "category": "monitoring_alert",
+      "text": "Нужно ли добавить алерт или предупреждение в лог для отслеживания повторений?",
+      "why": "Мониторинг помогает заметить повторение дефекта в продакшне до жалоб пользователей.",
+      "alternatives": [
+        {"id": "A", "text": "Добавить warning-лог с контекстом при приближении к граничным условиям", "description": "Предупреждающий лог"},
+        {"id": "B", "text": "Специфический алерт не требуется, достаточно стандартного логирования", "description": "Без алертов"},
+        {"id": "C", "text": "Счётчик метрики для дашборда Obsidian/Prometheus", "description": "Счётчик метрики"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Информативный warning-лог позволяет вовремя выявить аномалии.",
+      "allow_custom": true
+    },
+    "preventative_action": {
+      "id": "Q_BUG_PREVENTION",
+      "category": "preventative_action",
+      "text": "Какие превентивные меры исключат появление аналогичных багов в будущем?",
+      "why": "Системные выводы из каждого бага повышают общую зрелость кодовой базы.",
+      "alternatives": [
+        {"id": "A", "text": "Добавить строгую типизацию, валидацию входных параметров и правило линтера", "description": "Типизация и линтер"},
+        {"id": "B", "text": "Обновить документацию и инструкции для разработчиков", "description": "Обновление доки"},
+        {"id": "C", "text": "Зафиксировать урок в Second Brain для агентов", "description": "Память Brain"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Статическая типизация и валидация отсекают целый класс потенциальных дефектов.",
+      "allow_custom": true
+    }
+  }
+}

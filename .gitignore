@@ -232,3 +232,7 @@ tasks/*/full_trace.md
 tasks/*/last_*.log
 tasks/*/roles/
 benchmark-result.json
+
+# Galaxy Context OS local memory and execution state
+.galaxy/
+data/
