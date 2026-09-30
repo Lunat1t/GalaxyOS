@@ -105,6 +105,7 @@ class ExecutionPlan:
     plan_id: str = field(default_factory=lambda: "PLAN-" + uuid.uuid4().hex[:12].upper())
     created_at: str = field(default_factory=utcnow)
     schema_version: str = "2.0"
+    task_type: str = "general"
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "ExecutionPlan":
@@ -122,6 +123,8 @@ class ExecutionPlan:
     def validate(self) -> None:
         if not self.goal.strip() or not self.project.strip():
             raise ValueError("goal and project are required")
+        if self.task_type not in {"general", "bugfix", "feature"}:
+            raise ValueError("task_type must be general, bugfix or feature")
         if not self.nodes:
             raise ValueError("plan must contain at least one node")
         if len(self.nodes) > 128:

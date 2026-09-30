@@ -1,0 +1,69 @@
+{
+  "profiles": [
+    {
+      "name": "ollama-qwen-coder",
+      "provider": "ollama",
+      "model": "qwen2.5-coder:14b",
+      "base_url": "http://localhost:11434/v1",
+      "capabilities": ["general", "research", "planning", "implementation", "review", "verification", "qa"],
+      "quality": 0.86,
+      "latency_score": 0.85,
+      "input_cost_per_million": 0.0,
+      "output_cost_per_million": 0.0,
+      "max_parallel": 4,
+      "enabled": true
+    },
+    {
+      "name": "deepseek-cloud",
+      "provider": "deepseek",
+      "model": "deepseek-coder",
+      "base_url": "https://api.deepseek.com/v1",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "capabilities": ["general", "planning", "implementation", "review", "verification", "qa"],
+      "quality": 0.92,
+      "latency_score": 0.80,
+      "input_cost_per_million": 0.14,
+      "output_cost_per_million": 0.28,
+      "max_parallel": 8,
+      "enabled": true
+    },
+    {
+      "name": "openrouter-byok",
+      "provider": "openrouter",
+      "model": "qwen/qwen-2.5-coder-32b-instruct",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "capabilities": ["general", "research", "planning", "implementation", "review", "verification", "qa"],
+      "quality": 0.90,
+      "latency_score": 0.75,
+      "input_cost_per_million": 0.20,
+      "output_cost_per_million": 0.40,
+      "max_parallel": 6,
+      "enabled": true
+    },
+    {
+      "name": "codex-fast",
+      "provider": "codex",
+      "model": null,
+      "capabilities": ["general", "research", "planning", "implementation", "review", "verification", "qa"],
+      "quality": 0.82,
+      "latency_score": 0.78,
+      "input_cost_per_million": 0.0,
+      "output_cost_per_million": 0.0,
+      "max_parallel": 4,
+      "enabled": false
+    },
+    {
+      "name": "antigravity-fallback",
+      "provider": "antigravity",
+      "model": null,
+      "capabilities": ["general", "research", "planning", "implementation", "review", "verification", "qa"],
+      "quality": 0.76,
+      "latency_score": 0.68,
+      "input_cost_per_million": 0.0,
+      "output_cost_per_million": 0.0,
+      "max_parallel": 2,
+      "enabled": true
+    }
+  ]
+}

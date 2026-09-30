@@ -10,10 +10,10 @@ routines:
 # Daily Log: {{date}}
 
 ## Focus of the Day
--
+- 
 
 ## Tasks Log
--
+- 
 
 ## Notes & Fleeting Ideas
--
+- 

@@ -236,3 +236,14 @@ benchmark-result.json
 # Galaxy Context OS local memory and execution state
 .galaxy/
 data/
+
+# Restored alpha.18 runtime/report exclusions
+*.pyc
+data/brain/
+data/runtime/
+data/runs/
+data/planning/
+data/team-planning/
+data/teams/
+data/briefs/
+TEST_RESULTS.json

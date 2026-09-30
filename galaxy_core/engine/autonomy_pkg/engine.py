@@ -27,6 +27,7 @@ from galaxy_core.engine.autonomy_pkg.router import AdaptiveModelRouter
 from galaxy_core.engine.autonomy_pkg.store import AutonomyStore
 from galaxy_core.engine.autonomy_pkg.workspace import NodeWorkspace
 from galaxy_core.engine.storage import atomic_json
+from galaxy_core.engine.verification import VerificationStore
 
 Executor = Callable[..., NodeResult | Awaitable[NodeResult]]
 
@@ -47,11 +48,13 @@ class AutonomousEngine:
         self.memory_context = memory_context
         self.project_context = project_context
         self.learning_hook = learning_hook
+        self.verification = VerificationStore(self.root)
         self._promotion_lock = asyncio.Lock()
 
     def start(self, plan: ExecutionPlan, budget: BudgetLimits | None = None,
               approval_mode: str = "writes") -> str:
         plan.validate()
+        self._check_contract(plan)
         if approval_mode not in {"writes", "once", "off"}:
             raise ValueError("approval_mode must be writes, once or off")
         return self.store.create(plan, budget or BudgetLimits(), approval_mode)
@@ -84,6 +87,7 @@ class AutonomousEngine:
         if run["status"] in RUN_TERMINAL:
             return run
         plan = ExecutionPlan.from_dict(run["plan"])
+        self._check_contract(plan)
         limits = BudgetLimits(**run["budget"])
         ledger = BudgetLedger(limits, BudgetUsage(**run["usage"]))
         router = AdaptiveModelRouter(self.profiles, self.store.metrics())
@@ -148,7 +152,7 @@ class AutonomousEngine:
 
         final = self._require_run(run_id)
         self._write_projection(final)
-        if final["status"] == "DONE" and self.learning_hook:
+        if final["status"] in {"DONE", "FAILED"} and self.learning_hook:
             self.learning_hook(run_id, plan, final)
         return final
 
@@ -198,7 +202,16 @@ class AutonomousEngine:
                         raise TypeError("executor must return NodeResult")
                     result.validate()
                     if result.status == "PASS" and node.verification_commands:
-                        await self._verify_commands(node, workspace.path, evidence)
+                        try:
+                            await self._verify_commands(node, workspace.path, evidence, run_id, attempt)
+                        except Exception:
+                            result.evidence.extend(str(p.relative_to(self.root)) for p in sorted(evidence.glob("verify-*.log")))
+                            raise
+                        result.evidence.append(str((evidence / "verification-summary.log").relative_to(self.root)))
+                    if result.status == "PASS" and node.capability in {"qa", "verification"}:
+                        for rule in self.verification.active(plan.project, plan.task_type):
+                            if rule["check_kind"] == "require_evidence" and not result.evidence:
+                                raise RuntimeError(f"verification rule {rule['id']} requires recorded evidence")
                     if result.status == "PASS" and node.risk == "write":
                         async with self._promotion_lock:
                             workspace.promote(result)
@@ -227,7 +240,7 @@ class AutonomousEngine:
                             result=result, route=route, error=last_error, finished=True)
 
     async def _verify_commands(self, node: WorkNode, workdir: Path,
-                               evidence: Path) -> None:
+                               evidence: Path, run_id: str, attempt: int) -> None:
         logs: list[str] = []
         for index, command in enumerate(node.verification_commands, 1):
             args = shlex.split(command)
@@ -238,10 +251,18 @@ class AutonomousEngine:
                 stdout, stderr = await asyncio.wait_for(process.communicate(), node.timeout_seconds)
             except asyncio.TimeoutError:
                 process.kill(); await process.wait()
+                self.verification.record_check(run_id=run_id, node_id=node.id, attempt=attempt,
+                    index=index, command=command, exit_code=None, status="timeout",
+                    log_path=str((evidence / f"verify-{index}.log").relative_to(self.root)), output=b"")
                 raise RuntimeError(f"verification command timed out: {command}")
             text = (stdout.decode("utf-8", errors="replace") +
                     stderr.decode("utf-8", errors="replace"))
             (evidence / f"verify-{index}.log").write_text(text, encoding="utf-8")
+            self.verification.record_check(run_id=run_id, node_id=node.id, attempt=attempt,
+                index=index, command=command, exit_code=process.returncode,
+                status="passed" if process.returncode == 0 else "failed",
+                log_path=str((evidence / f"verify-{index}.log").relative_to(self.root)),
+                output=text.encode("utf-8"))
             logs.append(f"[{process.returncode}] {command}")
             if process.returncode:
                 raise RuntimeError(f"verification command failed ({process.returncode}): {command}")
@@ -259,12 +280,23 @@ class AutonomousEngine:
             "constraints": list(plan.constraints),
             "dependency_results": {dep: results.get(dep) for dep in node.dependencies},
             "context_refs": list(node.context_refs),
+            "verification_contract": {
+                "task_type": plan.task_type,
+                "acceptance_criteria": list(node.acceptance_criteria),
+                "commands": list(node.verification_commands),
+                "active_rules": self.verification.active(plan.project, plan.task_type),
+            },
         }
         if self.memory_context:
             context["managed_memories"] = self.memory_context(node, plan)
         if self.project_context:
             context["project_context"] = self.project_context(node, plan)
         return context
+
+    def _check_contract(self, plan: ExecutionPlan) -> None:
+        for rule in self.verification.active(plan.project, plan.task_type):
+            if not self.verification.check_plan(rule, plan):
+                raise ValueError(f"verification rule {rule['id']} requires a downstream verification command containing {rule['match_text']!r}")
 
     @staticmethod
     def _approval_needed(node: WorkNode, mode: str,

@@ -672,3 +672,4 @@ def validate_proposal(
             conflicts.append(conflict)
 
     return questions, facts, conflicts, dependencies
+
