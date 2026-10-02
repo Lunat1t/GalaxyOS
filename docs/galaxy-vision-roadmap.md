@@ -131,6 +131,7 @@ Galaxy 5.0: практичная работа рядом с Codex
 - [Текущее состояние Galaxy](sources/galaxy-superapp/01-current-galaxy.md) — ссылки на код и ограничения реализации.
 - [Контекст, память и агенты](sources/galaxy-superapp/02-context-memory-agents.md) — критическая оценка источников и четыре направления для проверки, а не список обязательных функций.
 - [Заметки и рабочие пространства](sources/galaxy-superapp/03-notes-and-workspaces.md) — критическая оценка и простой тест Markdown-заметок рядом с кодом.
+- [Гипотезы интерфейса проекта](sources/galaxy-superapp/03-workspace-ui-hypotheses.md) — варианты доступа к проекту и памяти; ни один пока не выбран.
 - [Пользовательские помощники](sources/galaxy-superapp/04-custom-assistants.md) — ориентиры по понятной настройке ролей.
 - [Проверка продуктовой гипотезы](sources/galaxy-superapp/05-product-validation.md) — как проверять спрос и результат.
 - [Идеи из оригинальной расшифровки воркшопа](sources/galaxy-superapp/06-workshop-insights.md) — гипотезы о продуктовой пользе, внедрении, рабочих процедурах и обучении на инцидентах.
