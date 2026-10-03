@@ -10,14 +10,17 @@ make selection auditable; they are not claims of model accuracy.
 from __future__ import annotations
 
 from collections import Counter, defaultdict, deque
+from dataclasses import dataclass
 import math
 from pathlib import Path
 import re
+import time
 from typing import Any, Iterable
 
 from galaxy_core.brain.semantic import PortableEmbedder
 from galaxy_core.world import FutureGraph, WorldSnapshot
 
+from .index import AttentionIndex
 from .models import AttentionBudget, AttentionCandidate, AttentionQuality, AttentionResult
 
 TOKEN_RE = re.compile(r"[^\W_]{2,}", re.UNICODE)
@@ -79,6 +82,37 @@ class AdaptiveBudgeter:
         reserve_tokens = max(0, effective - file_tokens - memory_tokens - graph_tokens - instruction_tokens)
         return AttentionBudget(profile, int(requested_tokens or 0), effective, file_tokens, memory_tokens,
                                graph_tokens, instruction_tokens, reserve_tokens, reason)
+
+
+@dataclass(frozen=True)
+class SemanticSearchPlan:
+    requested_mode: str
+    mode: str
+    candidate_limit: int
+    total_vectors: int
+
+
+class AdaptiveSemanticSearch:
+    """Choose exact or bounded vector scoring from index and task size."""
+
+    @staticmethod
+    def recommend(task: str, total_vectors: int, max_candidates: int,
+                  requested_mode: str = "auto") -> SemanticSearchPlan:
+        if requested_mode not in {"auto", "exact", "ann"}:
+            raise ValueError("semantic_mode must be auto, exact or ann")
+        total = max(0, int(total_vectors))
+        if requested_mode == "exact" or total <= 1:
+            return SemanticSearchPlan(requested_mode, "exact", total, total)
+        terms = len(set(_tokens(task)))
+        base = max(1024, max_candidates * 16, math.ceil(math.sqrt(max(1, total)) * 12))
+        if terms >= 24:
+            base = math.ceil(base * 1.35)
+        limit = min(total, 8192, base)
+        if requested_mode == "ann":
+            limit = min(limit, max(1, total - 1))
+            return SemanticSearchPlan(requested_mode, "ann", limit, total)
+        mode = "exact" if total <= AttentionIndex.EXACT_SEMANTIC_THRESHOLD or limit >= total else "ann"
+        return SemanticSearchPlan(requested_mode, mode, total if mode == "exact" else limit, total)
 
 
 class EvidenceExtractor:
@@ -167,15 +201,20 @@ class AttentionGatekeeper:
 
 
 class AttentionEngine:
-    def __init__(self, project_root: str | Path, project: str = "default", *, decision_fabric: Any | None = None):
+    def __init__(self, project_root: str | Path, project: str = "default", *, decision_fabric: Any | None = None,
+                 storage_root: str | Path | None = None):
         self.root = Path(project_root).resolve()
         self.project = project
         self.embedder = PortableEmbedder(dims=192)
         self.extractor = EvidenceExtractor()
         self.gatekeeper = AttentionGatekeeper(decision_fabric)
+        self.index = AttentionIndex(self.root, Path(storage_root or self.root), project, self.embedder, _tokens)
 
     def build(self, task: str, snapshot: WorldSnapshot, *, budget_tokens: int | None = None,
-              max_candidates: int = 72, max_files: int = 16) -> AttentionResult:
+              max_candidates: int = 72, max_files: int = 16,
+              semantic_mode: str = "auto", one_hop_graph: bool = False) -> AttentionResult:
+        if semantic_mode not in {"auto", "exact", "ann"}:
+            raise ValueError("semantic_mode must be auto, exact or ann")
         budget = AdaptiveBudgeter.recommend(task, snapshot.stats, budget_tokens)
         nodes = {n.path: n for n in snapshot.nodes}
         if not nodes:
@@ -183,10 +222,26 @@ class AttentionEngine:
 
         total_source_tokens = sum(max(1, int(n.size_bytes) // 4) for n in snapshot.nodes)
         small_full_context = len(nodes) <= min(max_files, 20) and total_source_tokens <= int(budget.file_tokens * 0.82)
-        docs = self._load_documents(snapshot.nodes)
-        bm25 = self._bm25(task, docs)
+        index_stats = self.index.prepare(snapshot.nodes)
+        bm25 = self.index.bm25(task)
         lexical = self._lexical(task, snapshot)
-        semantic = self._semantic(task, snapshot)
+        semantic_plan = AdaptiveSemanticSearch.recommend(
+            task, self.index.count(), max_candidates, semantic_mode
+        )
+        semantic_started = time.perf_counter()
+        if semantic_plan.mode == "exact":
+            semantic = self.index.semantic(task)
+            semantic_stats = {"mode": "exact", "total_vectors": semantic_plan.total_vectors,
+                              "scored_vectors": len(semantic), "bucket_hits": 0}
+        else:
+            semantic, semantic_stats = self.index.semantic_search(
+                task, candidate_limit=semantic_plan.candidate_limit, exact_threshold=0
+            )
+        semantic_stats.update({
+            "requested_mode": semantic_plan.requested_mode,
+            "candidate_limit": semantic_plan.candidate_limit,
+            "elapsed_ms": round((time.perf_counter() - semantic_started) * 1000, 3),
+        })
 
         combined: dict[str, AttentionCandidate] = {}
         bm_max = max(bm25.values(), default=1.0) or 1.0
@@ -236,23 +291,27 @@ class AttentionEngine:
         else:
             seed_paths = [x.path for x in ranked_initial[:8]]
         graph_scores = self._graph_expand(snapshot, seed_paths, depth=2)
+        one_hop_seeds = [item.path for item in ranked_initial[:max_files]]
+        one_hop_scores = (self._one_hop_expand(snapshot, one_hop_seeds)
+                          if one_hop_graph else {})
         future = FutureGraph(snapshot).simulate(task, seeds=seed_paths[:3] or None, depth=2, max_nodes=max(24, max_candidates // 2))
         impact_by_path: dict[str, float] = {}
         for item in future.impacted:
             impact_by_path[item.path] = max(impact_by_path.get(item.path, 0.0), float(item.confidence))
 
-        for path in set(graph_scores) | set(impact_by_path):
+        for path in set(graph_scores) | set(one_hop_scores) | set(impact_by_path):
             node = nodes.get(path)
             if not node:
                 continue
             c = combined.setdefault(path, AttentionCandidate(path, node.kind, node.language, node.component, list(node.symbols)))
-            c.graph_score = round(graph_scores.get(path, 0.0), 4)
+            c.graph_score = round(max(graph_scores.get(path, 0.0), one_hop_scores.get(path, 0.0)), 4)
             c.impact_score = round(impact_by_path.get(path, 0.0), 4)
             c.score += 0.24 * c.graph_score + 0.18 * c.impact_score
             if c.graph_score >= 0.20: c.reasons.append("dependency graph expansion")
             if c.impact_score >= 0.20: c.reasons.append("Future Graph blast-radius candidate")
 
         candidates = sorted(combined.values(), key=lambda c: (-c.score, c.path))[:max_candidates]
+        docs = self.index.documents([c.path for c in candidates])
         max_score = max((c.score for c in candidates), default=1.0)
         for c in candidates:
             self.gatekeeper.gate(c, max_score=max_score)
@@ -305,7 +364,21 @@ class AttentionEngine:
         )
         trace = {
             "wide_pool": len(candidates),
+            "world_snapshot_id": snapshot.snapshot_id,
+            "index": index_stats,
+            "semantic_search": semantic_stats,
+            "loaded_documents": len(docs),
             "seed_paths": seed_paths[:8],
+            "one_hop_graph": {
+                "enabled": one_hop_graph,
+                "seed_count": len(one_hop_seeds) if one_hop_graph else 0,
+                "candidate_count": len(one_hop_scores),
+                "inheritance_candidates": sum(
+                    1 for edge in snapshot.edges
+                    if edge.relation == "inherits" and edge.source in one_hop_seeds
+                    and edge.target in one_hop_scores
+                ) if one_hop_graph else 0,
+            },
             "future_graph_candidates": len(future.impacted),
             "future_structural_risk": future.structural_risk,
             "file_budget_tokens": budget.file_tokens,
@@ -386,6 +459,8 @@ class AttentionEngine:
     def _graph_expand(self, snapshot: WorldSnapshot, seeds: list[str], depth: int = 2) -> dict[str, float]:
         adj: dict[str, list[str]] = defaultdict(list)
         for e in snapshot.edges:
+            if e.relation not in {"imports", "links"}:
+                continue
             adj[e.source].append(e.target)
             adj[e.target].append(e.source)
         scores: dict[str, float] = {}
@@ -401,6 +476,17 @@ class AttentionEngine:
                 if nxt not in seen:
                     seen.add(nxt)
                     queue.append((nxt, nd))
+        return scores
+
+    @staticmethod
+    def _one_hop_expand(snapshot: WorldSnapshot, seeds: list[str]) -> dict[str, float]:
+        """Return direct imported/base modules from a bounded top-file seed set."""
+        seed_set = set(seeds)
+        scores: dict[str, float] = {}
+        for edge in snapshot.edges:
+            if edge.source not in seed_set or edge.relation not in {"imports", "inherits"}:
+                continue
+            scores[edge.target] = max(scores.get(edge.target, 0.0), 0.5 * edge.confidence)
         return scores
 
     @staticmethod

@@ -29,3 +29,4 @@ The last three are product research targets, not silently claimed as complete fe
 - 0 errors
 - 2 expected skips (live LLM unavailable; generated run history absent in clean build)
 - JavaScript calculator fixture passed
+

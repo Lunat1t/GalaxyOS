@@ -1,5 +1,7 @@
 from __future__ import annotations
 from dataclasses import asdict, dataclass, field
+import hashlib
+import json
 from typing import Any
 
 @dataclass(frozen=True)
@@ -13,6 +15,8 @@ class WorldNode:
     size_bytes: int = 0
     content_hash: str = ""
     summary: str = ""
+    classes: tuple[str, ...] = ()
+    bases: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -36,6 +40,16 @@ class WorldSnapshot:
     edges: list[WorldEdge] = field(default_factory=list)
     stats: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def snapshot_id(self) -> str:
+        """Stable content identity, independent of the scan timestamp."""
+        payload = [self.project, self.root,
+                   [(n.path, n.content_hash, n.kind, n.language, n.component, n.symbols, n.summary)
+                    + (n.classes, n.bases)
+                    for n in self.nodes],
+                   [(e.source, e.target, e.relation, e.confidence) for e in self.edges]]
+        return hashlib.sha256(json.dumps(payload, ensure_ascii=False).encode()).hexdigest()[:24]
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "project": self.project,
@@ -52,7 +66,9 @@ class WorldSnapshot:
             project=str(raw.get("project") or "default"),
             root=str(raw.get("root") or ""),
             generated_at=str(raw.get("generated_at") or ""),
-            nodes=[WorldNode(**{**n, "symbols": tuple(n.get("symbols") or ())}) for n in raw.get("nodes", [])],
+            nodes=[WorldNode(**{**n, "symbols": tuple(n.get("symbols") or ()),
+                                "classes": tuple(n.get("classes") or ()),
+                                "bases": tuple(n.get("bases") or ())}) for n in raw.get("nodes", [])],
             edges=[WorldEdge(**e) for e in raw.get("edges", [])],
             stats=dict(raw.get("stats") or {}),
         )

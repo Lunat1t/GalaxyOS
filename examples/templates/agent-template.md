@@ -14,7 +14,7 @@ circuit_breaker:
 {{system_prompt}}
 
 ## Protocol & Constraints
--
+- 
 
 ## Tools Matrix (MCP)
--
+- 

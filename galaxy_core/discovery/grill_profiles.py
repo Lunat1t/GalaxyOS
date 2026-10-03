@@ -110,6 +110,9 @@ def _find_config_dir(custom_path: Path | str | None = None) -> Path:
     cfg = root_candidate / "config" / "interview_profiles"
     if cfg.is_dir():
         return cfg
+    bundled = root_candidate / "galaxy_core" / "resources" / "interview_profiles"
+    if bundled.is_dir():
+        return bundled
     # Try current working directory
     cwd_cfg = Path.cwd() / "config" / "interview_profiles"
     if cwd_cfg.is_dir():

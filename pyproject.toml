@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "galaxy-context-os"
+version = "3.2.1a16"
+description = "Local context runtime for AI software development"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["mcp>=2.0,<3"]
+
+[project.scripts]
+galaxy = "galaxy:main"
+
+[tool.setuptools]
+py-modules = ["galaxy"]
+
+[tool.setuptools.packages.find]
+include = ["galaxy_core*"]
+
+[tool.setuptools.package-data]
+galaxy_core = ["resources/**/*.json", "resources/**/*.md", "resources/*.json"]

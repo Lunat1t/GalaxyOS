@@ -105,6 +105,8 @@ class FutureGraph:
         dependents: dict[str, list[tuple[str, str, float]]] = {}
         dependencies: dict[str, list[tuple[str, str, float]]] = {}
         for e in self.snapshot.edges:
+            if e.relation not in {"imports", "links"}:
+                continue
             dependencies.setdefault(e.source, []).append((e.target, e.relation, e.confidence))
             dependents.setdefault(e.target, []).append((e.source, e.relation, e.confidence))
 

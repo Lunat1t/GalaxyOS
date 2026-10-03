@@ -1,14 +1,67 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict, field
+import hashlib
 import json
 from pathlib import Path
+import re
+import sqlite3
+import time
 from typing import Any
 
 from galaxy_core.brain.store import BrainStore
 from galaxy_core.brain.reconcile import MemoryReconciler
 from galaxy_core.attention import AttentionEngine
+from galaxy_core.attention.index import StaleWorldSnapshot
 from galaxy_core.world import FutureGraph, ProjectWorldModel
+from .capsules import CapsuleStore, scope_for
+from .experience import ExperienceStore
+
+
+class ContextPacketCache:
+    """Bounded per-project persistent cache for serialized Context Packets."""
+
+    VERSION = 2
+    MAX_ENTRIES = 128
+
+    def __init__(self, galaxy_root: Path, project_root: Path, project: str):
+        scope = hashlib.sha256(f"{project_root.resolve()}\0{project}".encode()).hexdigest()[:20]
+        self.path = galaxy_root / "data" / "runtime" / "context-packets" / f"{scope}.sqlite3"
+
+    def get(self, key: str) -> dict[str, Any] | None:
+        if not self.path.exists():
+            return None
+        try:
+            with sqlite3.connect(self.path, timeout=10) as db:
+                row = db.execute("SELECT packet_json FROM packets WHERE cache_key = ?", (key,)).fetchone()
+                if row is None:
+                    return None
+                db.execute("UPDATE packets SET last_accessed = ? WHERE cache_key = ?",
+                           (time.time(), key))
+                value = json.loads(row[0])
+                return value if isinstance(value, dict) else None
+        except (sqlite3.Error, OSError, ValueError, TypeError):
+            return None
+
+    def put(self, key: str, packet: dict[str, Any]) -> bool:
+        encoded = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(self.path, timeout=10) as db:
+                db.execute("PRAGMA journal_mode=WAL")
+                db.execute("CREATE TABLE IF NOT EXISTS packets ("
+                           "cache_key TEXT PRIMARY KEY, packet_json TEXT NOT NULL, "
+                           "snapshot_id TEXT NOT NULL, created_at REAL NOT NULL, last_accessed REAL NOT NULL)")
+                now = time.time()
+                db.execute("INSERT OR REPLACE INTO packets VALUES (?, ?, ?, ?, ?)",
+                           (key, encoded, str(packet.get("world_snapshot_id") or ""), now, now))
+                db.execute("DELETE FROM packets WHERE cache_key IN ("
+                           "SELECT cache_key FROM packets ORDER BY last_accessed DESC LIMIT -1 OFFSET ?)",
+                           (self.MAX_ENTRIES,))
+            return True
+        except (sqlite3.Error, OSError):
+            return False
+
 
 
 @dataclass
@@ -26,6 +79,9 @@ class ContextPacket:
     impact: dict[str, Any] = field(default_factory=dict)
     knowledge_health: dict[str, Any] = field(default_factory=dict)
     attention: dict[str, Any] = field(default_factory=dict)
+    capsules: list[dict[str, Any]] = field(default_factory=list)
+    world_snapshot_id: str = ""
+    experiences: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -33,8 +89,18 @@ class ContextPacket:
     def to_markdown(self) -> str:
         lines = [f"# Dynamic Agent Context — {self.project}", "", "## Task", self.task, "", "## Project overview"]
         lines += [f"- files: {self.project_overview.get('files', 0)}", f"- dependency edges: {self.project_overview.get('edges', 0)}"]
+        if self.world_snapshot_id: lines.append(f"- world snapshot: `{self.world_snapshot_id}`")
         comps = self.project_overview.get("components", {})
         if comps: lines.append("- components: " + ", ".join(f"{k} ({v})" for k, v in list(comps.items())[:12]))
+        if self.capsules:
+            lines += ["", "## Component maps"]
+            for capsule in self.capsules:
+                lines.append(f"### {capsule['scope']} ({capsule['file_count']} files)")
+                for item in capsule["files"]:
+                    symbols = ", ".join(item["symbols"])
+                    lines.append(f"- `{item['path']}`: {item['summary']}" + (f" [{symbols}]" if symbols else ""))
+                for edge in capsule["relationships"]:
+                    lines.append(f"- `{edge['source']}` --{edge['relation']}--> `{edge['target']}`")
         lines += ["", "## Relevant files"]
         for f in self.files:
             lines.append(f"- `{f['path']}` — score {f['score']:.2f}; {f['reason']}")
@@ -44,6 +110,11 @@ class ContextPacket:
         for m in self.memories:
             lines.append(f"- **{m.get('kind')} · {m.get('title')}** [{m.get('uid')}] confidence={float(m.get('confidence') or .5):.2f}")
             if m.get("summary"): lines.append("  " + " ".join(str(m["summary"]).split())[:420])
+        if self.experiences:
+            lines += ["", "## Relevant prior experience (observations, verify before reuse)"]
+            for item in self.experiences:
+                lines.append(f"- [{item['id']}] {item['outcome']} · {item['role']} · run {item['run_id']}/{item['node_id']}: {item['lesson'] or item['summary']}")
+                lines.append(f"  verified={bool(item['verified'])}; evidence: {', '.join(item['evidence']) or 'none'}")
         if self.instructions:
             lines += ["", "## Project instructions"]
             for i in self.instructions:
@@ -94,12 +165,127 @@ class ContextCompiler:
         self.project = project
         self.world = ProjectWorldModel(self.galaxy_root, self.project_root, project)
         self.brain = BrainStore(self.galaxy_root)
+        self.capsules = CapsuleStore(self.galaxy_root, self.project_root, project)
+        self.experience = ExperienceStore(self.galaxy_root, self.project_root)
+        self.packet_cache = ContextPacketCache(self.galaxy_root, self.project_root, project)
 
-    def compile(self, task: str, *, budget_tokens: int = 0, max_files: int = 16, refresh_world: bool = False) -> ContextPacket:
-        snap = self.world.sync() if refresh_world else self.world.load()
-        attention_result = AttentionEngine(self.project_root, self.project).build(
-            task, snap, budget_tokens=budget_tokens if budget_tokens > 0 else None, max_files=max_files
-        )
+    def compile(self, task: str, *, budget_tokens: int = 0, max_files: int = 16,
+                role: str = "", owner_id: str | None = None, team_id: str | None = None,
+                refresh_world: bool = False, _retry: bool = False) -> ContextPacket:
+        started = time.perf_counter()
+        if max_files < 1:
+            raise ValueError("max_files must be positive")
+        snap = self.world.sync() if refresh_world else self.world.current()
+        memory_signature = self._memory_signature()
+        experience_signature = self.experience.signature()
+        key_payload = [
+            ContextPacketCache.VERSION, task, self.project, str(self.project_root),
+            snap.snapshot_id, memory_signature, experience_signature, role, owner_id, team_id,
+            max(0, int(budget_tokens)), max(1, int(max_files)),
+        ]
+        cache_key = hashlib.sha256(json.dumps(key_payload, ensure_ascii=False,
+                                               separators=(",", ":")).encode()).hexdigest()
+        cached = self.packet_cache.get(cache_key) if memory_signature is not None else None
+        if cached is not None:
+            try:
+                packet = ContextPacket(**cached)
+            except (TypeError, ValueError):
+                packet = None
+        else:
+            packet = None
+        if packet is not None:
+            if self.world.is_current(snap) and self._memory_signature() == memory_signature and self.experience.signature() == experience_signature:
+                self._mark_packet_cache(packet, "hit", time.perf_counter() - started)
+                return packet
+            if _retry:
+                raise StaleWorldSnapshot("project or memory changed while loading cached context")
+            return self.compile(task, budget_tokens=budget_tokens, max_files=max_files, role=role, owner_id=owner_id, team_id=team_id,
+                                refresh_world=True, _retry=True)
+
+        packet = self._compile_uncached(task, budget_tokens=budget_tokens, max_files=max_files,
+                                        role=role, owner_id=owner_id, team_id=team_id,
+                                        refresh_world=False, _retry=_retry, _snapshot=snap)
+        if not self.world.is_current(snap):
+            if _retry:
+                raise StaleWorldSnapshot("source changed twice while caching context")
+            return self.compile(task, budget_tokens=budget_tokens, max_files=max_files, role=role, owner_id=owner_id, team_id=team_id,
+                                refresh_world=True, _retry=True)
+        if memory_signature is not None and (self._memory_signature() != memory_signature or self.experience.signature() != experience_signature):
+            if _retry:
+                raise RuntimeError("project memory changed repeatedly while compiling context")
+            return self.compile(task, budget_tokens=budget_tokens, max_files=max_files, role=role, owner_id=owner_id, team_id=team_id,
+                                refresh_world=False, _retry=True)
+        self._mark_packet_cache(packet, "miss", time.perf_counter() - started)
+        packet.attention["packet_cache"]["stored"] = False
+        packet.estimated_tokens = self._estimate(packet)
+        if memory_signature is not None and packet.estimated_tokens <= packet.budget_tokens:
+            packet.attention["packet_cache"]["stored"] = True
+            packet.estimated_tokens = self._estimate(packet)
+            packet.attention["packet_cache"]["stored"] = (
+                self.packet_cache.put(cache_key, packet.to_dict())
+                if packet.estimated_tokens <= packet.budget_tokens else False
+            )
+            packet.estimated_tokens = self._estimate(packet)
+        return packet
+
+    def _mark_packet_cache(self, packet: ContextPacket, status: str, elapsed: float) -> None:
+        packet.attention["packet_cache"] = {
+            "status": status,
+            "elapsed_ms": round(elapsed * 1000, 3),
+        }
+        self._trim(packet)
+        if packet.attention:
+            packet.attention["selected_files"] = [item["path"] for item in packet.files]
+        packet.estimated_tokens = self._estimate(packet)
+
+    def _memory_signature(self) -> str | None:
+        """Hash stable memory inputs that can change the packet; ignore read counters."""
+        if not self.brain.db.exists():
+            return "empty"
+        digest = hashlib.sha256()
+        tables = {
+            "memories": "id,uid,agent,kind,task,project,title,summary,tags,success,qa_pass,created_at,run_id,source,dedupe_key,status,source_type,source_ref,source_hash,confidence,importance,confirmed_at,confirmed_by,updated_at,valid_from,valid_to,supersedes_uid,metadata",
+            "memory_links": "from_uid,to_uid,relation,created_at",
+            "goals": "id,uid,project,title,description,status,priority,horizon,success_criteria,review_at,source,created_at,updated_at",
+            "goal_memory_links": "goal_uid,memory_uid,relation,created_at",
+            "entities": "uid,canonical,entity_type,display_name,created_at",
+            "entity_aliases": "entity_uid,alias",
+            "memory_entities": "memory_uid,entity_uid,confidence,source",
+            "entity_relations": "from_uid,to_uid,relation,weight,evidence,created_at",
+        }
+        try:
+            with sqlite3.connect(f"file:{self.brain.db}?mode=ro", uri=True, timeout=5) as db:
+                existing = {row[0] for row in db.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'")}
+                for table, columns in tables.items():
+                    if table not in existing:
+                        continue
+                    digest.update(table.encode())
+                    for row in db.execute(f"SELECT {columns} FROM {table} ORDER BY {columns}"):
+                        digest.update(json.dumps(row, ensure_ascii=False, default=str,
+                                                 separators=(",", ":")).encode())
+                        digest.update(b"\n")
+        except (sqlite3.Error, OSError):
+            # A fingerprint failure must disable reuse instead of serving stale memory.
+            return None
+        # Memory ranking has a day-granularity age boost; expire that component at midnight.
+        digest.update(time.strftime("%Y-%m-%d").encode())
+        return digest.hexdigest()
+
+    def _compile_uncached(self, task: str, *, budget_tokens: int = 0, max_files: int = 16,
+                          role: str = "", owner_id: str | None = None, team_id: str | None = None,
+                          refresh_world: bool = False, _retry: bool = False,
+                          _snapshot=None) -> ContextPacket:
+        snap = _snapshot or (self.world.sync() if refresh_world else self.world.current())
+        try:
+            attention_result = AttentionEngine(self.project_root, self.project, storage_root=self.galaxy_root).build(
+                task, snap, budget_tokens=budget_tokens if budget_tokens > 0 else None, max_files=max_files
+            )
+        except StaleWorldSnapshot:
+            if _retry:
+                raise
+            return self.compile(task, budget_tokens=budget_tokens, max_files=max_files, role=role, owner_id=owner_id, team_id=team_id,
+                                refresh_world=True, _retry=True)
         effective_budget = attention_result.budget.effective_tokens
         files: list[dict[str, Any]] = []
         for c in attention_result.selected:
@@ -117,6 +303,9 @@ class ContextCompiler:
         file_ids = {f["path"] for f in files}
         graph = [e.to_dict() for e in snap.edges if e.source in file_ids or e.target in file_ids][:80]
         memories = self.brain.context(task, project=self.project, limit=12)
+        experiences = self.experience.relevant(task, project=self.project, role=role,
+                                               owner_id=owner_id, team_id=team_id,
+                                               budget_tokens=max(200, min(900, effective_budget // 10)))
         instructions = self._instructions([f["path"] for f in files])
         seeds = [f["path"] for f in files if f.get("role") == "primary"][:3] or [f["path"] for f in files[:3]]
         scenario = FutureGraph(snap).simulate(task, seeds=seeds or None, depth=2, max_nodes=24)
@@ -131,7 +320,9 @@ class ContextCompiler:
             "dropped": attention_result.dropped,
             "trace": attention_result.trace,
         }
-        packet = ContextPacket(task, self.project, dict(snap.stats), files, graph, memories, instructions, [], 0, effective_budget, impact, health, attention)
+        packet = ContextPacket(task, self.project, dict(snap.stats), files, graph, memories, instructions, [], 0,
+                               effective_budget, impact, health, attention, world_snapshot_id=snap.snapshot_id,
+                               experiences=experiences)
         if health.get("counts", {}).get("total"):
             packet.uncertainty.append("Living memory has unresolved evidence/conflict findings; see knowledge_health before treating all project knowledge as current.")
         if attention_result.quality.selection_confidence < 0.68:
@@ -142,9 +333,52 @@ class ContextCompiler:
             packet.attention["selected_files"] = [f["path"] for f in packet.files]
             packet.attention["selected_after_compile"] = len(packet.files)
             packet.attention["trimmed_by_compiler"] = max(0, before - len(packet.files))
+            capsules, cache_stats = self.capsules.select(snap, [f["path"] for f in packet.files])
+            included = 0
+            for capsule in capsules:
+                packet.capsules.append(capsule)
+                size = self._estimate(packet)
+                if size > packet.budget_tokens:
+                    packet.capsules.pop()
+                else:
+                    packet.estimated_tokens = size
+                    included += 1
+            packet.attention["capsule_cache"] = {**cache_stats, "included": included}
+            packet.estimated_tokens = self._estimate(packet)
             q = packet.attention.setdefault("quality", {})
             q["token_utilization"] = round(min(1.0, packet.estimated_tokens / max(1, packet.budget_tokens)), 4)
+        packet.estimated_tokens = self._estimate(packet)
+        if not self.world.is_current(snap):
+            if _retry:
+                raise StaleWorldSnapshot("source changed twice while compiling context")
+            return self.compile(task, budget_tokens=budget_tokens, max_files=max_files,
+                                refresh_world=True, _retry=True)
         return packet
+
+    def overview(self, task: str, *, refresh_world: bool = False, limit: int = 2,
+                 _retry: bool = False) -> dict[str, Any]:
+        """Fast L1 component map without running Attention or loading source text."""
+        snap = self.world.sync() if refresh_world else self.world.current()
+        terms = set(re.findall(r"[^\W_]{2,}", task.casefold(), flags=re.UNICODE))
+        ranked: dict[str, tuple[float, str]] = {}
+        for node in snap.nodes:
+            scope = scope_for(node.path)
+            path_terms = set(re.findall(r"[^\W_]{2,}", node.path.replace("/", " ").replace("_", " ").casefold()))
+            symbol_terms = set(re.findall(r"[^\W_]{2,}", " ".join(node.symbols).replace("_", " ").casefold()))
+            summary_terms = set(re.findall(r"[^\W_]{2,}", node.summary.casefold()))
+            score = 3 * len(terms & path_terms) + 2 * len(terms & symbol_terms) + len(terms & summary_terms)
+            if score > ranked.get(scope, (-1, ""))[0]:
+                ranked[scope] = (score, node.path)
+        paths = [item[1] for _, item in sorted(ranked.items(), key=lambda pair: (-pair[1][0], pair[0]))[:max(0, limit)]]
+        capsules, stats = self.capsules.select(snap, paths, limit=limit)
+        result = {"task": task, "project": self.project, "world_snapshot_id": snap.snapshot_id,
+                  "capsules": capsules, "cache": stats}
+        result["estimated_tokens"] = max(1, len(json.dumps(result, ensure_ascii=False)) // 4)
+        if not self.world.is_current(snap):
+            if _retry:
+                raise StaleWorldSnapshot("source changed twice while compiling overview")
+            return self.overview(task, refresh_world=True, limit=limit, _retry=True)
+        return result
 
     def export(self, task: str, destination: str | Path, **kwargs) -> Path:
         packet = self.compile(task, **kwargs)
@@ -198,6 +432,10 @@ class ContextCompiler:
 
     def _trim(self, packet: ContextPacket) -> None:
         packet.estimated_tokens = self._estimate(packet)
+        # Structural maps are optional; they must never displace task evidence.
+        while packet.estimated_tokens > packet.budget_tokens and packet.capsules:
+            packet.capsules.pop()
+            packet.estimated_tokens = self._estimate(packet)
         while packet.estimated_tokens > packet.budget_tokens and packet.files:
             packet.files.pop()
             file_ids = {f["path"] for f in packet.files}
@@ -205,6 +443,9 @@ class ContextCompiler:
             packet.estimated_tokens = self._estimate(packet)
         while packet.estimated_tokens > packet.budget_tokens and packet.memories:
             packet.memories.pop()
+            packet.estimated_tokens = self._estimate(packet)
+        while packet.estimated_tokens > packet.budget_tokens and packet.experiences:
+            packet.experiences.pop()
             packet.estimated_tokens = self._estimate(packet)
         while packet.estimated_tokens > packet.budget_tokens and packet.graph:
             packet.graph.pop()

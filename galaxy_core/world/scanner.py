@@ -4,6 +4,7 @@ from __future__ import annotations
 import ast
 import datetime as dt
 import hashlib
+import os
 from pathlib import Path
 import re
 import posixpath
@@ -52,10 +53,12 @@ class ProjectScanner:
             component = rel.split("/", 1)[0] if "/" in rel else "root"
             kind = self._kind(path)
             summary = self._summary(text)
+            classes, bases = self._python_class_metadata(text) if path.suffix.lower() == ".py" else ((), ())
             nodes.append(WorldNode(
                 id=rel, path=rel, kind=kind, language=LANG.get(path.suffix.lower(), "text"),
                 component=component, symbols=tuple(symbols[:40]), size_bytes=len(data),
                 content_hash=hashlib.sha256(data).hexdigest()[:16], summary=summary,
+                classes=classes, bases=bases,
             ))
 
         for rel, text in text_by_path.items():
@@ -71,6 +74,8 @@ class ProjectScanner:
                 if target != rel:
                     edges.append(WorldEdge(rel, target, relation, 0.98))
 
+        edges.extend(self._inheritance_edges(nodes))
+
         # Soft same-component edges are intentionally omitted; they create noise. The component
         # field is retained for coarse navigation and context compilation.
         languages: dict[str, int] = {}
@@ -84,25 +89,74 @@ class ProjectScanner:
             generated_at=dt.datetime.now(dt.timezone.utc).isoformat(),
             nodes=sorted(nodes, key=lambda n: n.path),
             edges=sorted({(e.source, e.target, e.relation): e for e in edges}.values(), key=lambda e: (e.source, e.target, e.relation)),
-            stats={"files": len(nodes), "edges": len(edges), "languages": languages, "components": components},
+            stats={"files": len(nodes), "edges": len(edges), "languages": languages,
+                   "components": components, "class_graph_version": 1},
+        )
+
+    def scan_delta(self, previous: WorldSnapshot, changed: set[str], paths: dict[str, Path]) -> WorldSnapshot:
+        """Reparse modified existing files; the set of paths must be unchanged.
+
+        With an unchanged path set, imports in untouched files resolve to the
+        same targets, so only edges originating at changed files need rebuilding.
+        Additions and deletions must use a full scan instead.
+        """
+        if set(paths) != {node.path for node in previous.nodes} or not changed <= set(paths):
+            raise ValueError("file set changed; full world scan required")
+        nodes = {node.path: node for node in previous.nodes}
+        edges = [edge for edge in previous.edges if edge.source not in changed]
+        index = set(paths)
+        for rel in sorted(changed):
+            path = paths[rel]
+            data = path.read_bytes()
+            text = data.decode("utf-8", errors="replace") if len(data) <= self.max_file_bytes else ""
+            classes, bases = self._python_class_metadata(text) if path.suffix.lower() == ".py" else ((), ())
+            nodes[rel] = WorldNode(
+                id=rel, path=rel, kind=self._kind(path), language=LANG.get(path.suffix.lower(), "text"),
+                component=rel.split("/", 1)[0] if "/" in rel else "root",
+                symbols=tuple(self._symbols(path, text)[:40]), size_bytes=len(data),
+                content_hash=hashlib.sha256(data).hexdigest()[:16], summary=self._summary(text),
+                classes=classes, bases=bases,
+            )
+            suffix = path.suffix.lower()
+            targets: Iterable[tuple[str, str]] = ()
+            if suffix == ".py":
+                targets = ((target, "imports") for target in self._python_imports(rel, text, index))
+            elif suffix in {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}:
+                targets = ((target, "imports") for target in self._js_imports(rel, text, index))
+            elif suffix == ".md":
+                targets = ((target, "links") for target in self._markdown_links(rel, text, index))
+            edges.extend(WorldEdge(rel, target, relation, 0.98) for target, relation in targets if target != rel)
+        edges = [edge for edge in edges if edge.relation != "inherits"]
+        edges.extend(self._inheritance_edges(nodes.values()))
+        languages: dict[str, int] = {}
+        components: dict[str, int] = {}
+        for node in nodes.values():
+            languages[node.language] = languages.get(node.language, 0) + 1
+            components[node.component] = components.get(node.component, 0) + 1
+        ordered_edges = sorted({(e.source, e.target, e.relation): e for e in edges}.values(),
+                               key=lambda e: (e.source, e.target, e.relation))
+        return WorldSnapshot(
+            project=self.project, root=str(self.root), generated_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+            nodes=sorted(nodes.values(), key=lambda n: n.path), edges=ordered_edges,
+            stats={"files": len(nodes), "edges": len(ordered_edges), "languages": languages,
+                   "components": components, "class_graph_version": 1},
         )
 
     def _files(self):
-        for path in self.root.rglob("*"):
-            if not path.is_file():
-                continue
-            try:
-                parts = path.relative_to(self.root).parts
-            except ValueError:
-                continue
-            if any(part in IGNORE_DIRS or part.startswith(".pytest") for part in parts[:-1]):
-                continue
-            if len(parts) >= 2 and tuple(parts[:2]) in MANAGED_PREFIXES:
-                continue
-            if path.name.startswith(".") and path.name not in {".env.example"}:
-                continue
-            if path.suffix.lower() in TEXT_EXTS or path.name in {"Dockerfile", "Makefile", "AGENTS.md", "CLAUDE.md"}:
-                yield path
+        for directory, dirs, files in os.walk(self.root):
+            parent = Path(directory)
+            prefix = parent.relative_to(self.root).parts
+            dirs[:] = [name for name in dirs
+                       if name not in IGNORE_DIRS and not name.startswith(".pytest")
+                       and tuple((prefix + (name,))[:2]) not in MANAGED_PREFIXES]
+            for name in files:
+                if name.startswith(".") and name != ".env.example":
+                    continue
+                path = parent / name
+                if path.is_file() and (path.suffix.lower() in TEXT_EXTS or name in {
+                    "Dockerfile", "Makefile", "AGENTS.md", "CLAUDE.md"
+                }):
+                    yield path
 
     @staticmethod
     def _kind(path: Path) -> str:
@@ -133,6 +187,59 @@ class ProjectScanner:
             rx = re.compile(r"\b(?:class|interface|function|def|fn|func)\s+([A-Za-z_][A-Za-z0-9_]*)")
             return rx.findall(text)[:40]
         return []
+
+    @staticmethod
+    def _python_class_metadata(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            return (), ()
+        aliases: dict[str, str] = {}
+        for item in ast.walk(tree):
+            if isinstance(item, ast.ImportFrom):
+                for name in item.names:
+                    if name.name != "*":
+                        aliases[name.asname or name.name] = name.name
+        classes: list[str] = []
+        bases: set[str] = set()
+
+        def base_name(node: ast.AST) -> str | None:
+            if isinstance(node, ast.Name):
+                return node.id
+            if isinstance(node, ast.Attribute):
+                return node.attr
+            if isinstance(node, ast.Subscript):
+                return base_name(node.value)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                try:
+                    return base_name(ast.parse(node.value, mode="eval").body)
+                except SyntaxError:
+                    return None
+            return None
+
+        for item in ast.walk(tree):
+            if isinstance(item, ast.ClassDef):
+                classes.append(item.name)
+                for base in item.bases:
+                    name = base_name(base)
+                    if name and name != "object":
+                        bases.add(aliases.get(name, name))
+        return tuple(sorted(set(classes))), tuple(sorted(bases))
+
+    @staticmethod
+    def _inheritance_edges(nodes: Iterable[WorldNode]) -> list[WorldEdge]:
+        class_paths: dict[str, list[str]] = {}
+        node_list = list(nodes)
+        for node in node_list:
+            for name in node.classes:
+                class_paths.setdefault(name, []).append(node.path)
+        edges = []
+        for node in node_list:
+            for base in node.bases:
+                paths = class_paths.get(base, [])
+                if len(paths) == 1 and paths[0] != node.path:
+                    edges.append(WorldEdge(node.path, paths[0], "inherits", 0.95))
+        return edges
 
     def _python_imports(self, rel: str, text: str, index: set[str]) -> set[str]:
         out: set[str] = set()

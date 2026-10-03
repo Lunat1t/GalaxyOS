@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from importlib.resources import files
 import json
 from pathlib import Path
 import shutil
@@ -17,8 +18,13 @@ from galaxy_core.brain.store import BrainStore
 from galaxy_core.brain.reconcile import MemoryReconciler
 from galaxy_core.world import ProjectWorldModel
 from galaxy_core.context import ContextCompiler
+from galaxy_core.context.experience import ExperienceStore
+from galaxy_core.benchmark.continuity import evaluate_continuity
+from galaxy_core.engine.verification import VerificationStore
 from galaxy_core.attention import AttentionEngine
-from galaxy_core.benchmark import export_predictions, evaluate_predictions
+from galaxy_core.kernel import KernelProjector, KernelWatcher
+from galaxy_core.benchmark import (export_predictions, evaluate_predictions, compare_exact_ann,
+                                   compare_one_hop_graph, run_repobench_r)
 from galaxy_core.discovery.interview import (
     QUESTION_BANK,
     GrillInterview,
@@ -58,7 +64,7 @@ from galaxy_core.engine.decisions import (
 
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_MODELS = ROOT / "config" / "model-profiles.json"
+DEFAULT_MODELS = Path(str(files("galaxy_core").joinpath("resources", "model-profiles.json")))
 
 
 def load_models(path: str | Path = DEFAULT_MODELS) -> list[ModelProfile]:
@@ -70,27 +76,39 @@ def load_models(path: str | Path = DEFAULT_MODELS) -> list[ModelProfile]:
 
 
 def learn_from_run(run_id: str, plan: ExecutionPlan, run: dict, brain: BrainStore | None = None,
-                   agents: AgentRegistry | None = None) -> None:
+                   agents: AgentRegistry | None = None, experience: ExperienceStore | None = None) -> None:
     brain = brain or BrainStore(ROOT)
     agents = agents or AgentRegistry(ROOT)
+    experience = experience or ExperienceStore(ROOT)
+    by_id = {node.id: node for node in plan.nodes}
     for row in run["nodes"]:
         result = row.get("result")
-        if not result:
+        if not result or row["node_id"] not in by_id:
             continue
-        brain.remember(
-            "verification" if next(x for x in plan.nodes if x.id == row["node_id"]).capability in {"qa", "verification"} else "outcome",
-            f"{plan.goal} — {row['node_id']}", result["summary"],
-            agent=next(x.role for x in plan.nodes if x.id == row["node_id"]),
-            project=plan.project, tags=["galaxy-v2", "autonomous-dag"],
-            success=True, qa_pass=True, run_id=run_id, source_type="autonomy_run",
-            source_ref=f"data/runs/{run_id}/state.json", confidence=.92,
-            importance=.75, confirmed=True, confirmed_by="dag_verification",
-            dedupe_key=f"v2:{run_id}:{row['node_id']}",
-        )
-        agent_id = next(x.role.lower() for x in plan.nodes if x.id == row["node_id"])
+        node = by_id[row["node_id"]]
+        passed = row["status"] == "SUCCEEDED" and result.get("status") == "PASS"
+        evidence = result.get("evidence") or []
+        verified = passed and bool(node.verification_commands) and bool(evidence)
         candidates = result.get("memory_candidates") or []
         lesson = candidates[0] if candidates else result["summary"]
-        agents.record_experience(agent_id, "success", lesson, project=plan.project,
+        experience.record(project=plan.project, task=node.objective, role=node.role,
+                          agent_id=node.role.lower(), run_id=run_id, node_id=node.id,
+                          outcome="success" if passed else "failure", summary=result["summary"],
+                          lesson=lesson, evidence=evidence, confidence=float(result.get("confidence", .5)),
+                          verified=verified)
+        if not passed:
+            continue
+        brain.remember(
+            "verification" if node.capability in {"qa", "verification"} else "outcome",
+            f"{plan.goal} — {row['node_id']}", result["summary"],
+            agent=node.role,
+            project=plan.project, tags=["galaxy-v2", "autonomous-dag"],
+            success=True, qa_pass=verified, run_id=run_id, source_type="autonomy_run",
+            source_ref=f"data/runs/{run_id}/state.json", confidence=float(result.get("confidence", .7)),
+            importance=.75, confirmed=verified, confirmed_by="dag_verification" if verified else None,
+            dedupe_key=f"v2:{run_id}:{row['node_id']}",
+        )
+        agents.record_experience(node.role.lower(), "success", lesson, project=plan.project,
                                  run_id=run_id, confidence=float(result.get("confidence", .7)))
 
 
@@ -99,6 +117,7 @@ def engine(models: str | Path = DEFAULT_MODELS, concurrency: int = 4,
     brain = BrainStore(ROOT)
     agents = AgentRegistry(ROOT)
     agents.bootstrap_defaults()
+    experience = ExperienceStore(ROOT)
     profiles = load_models(models)
     executor = (TeamAwareExecutor(
         ROOT, agents, CLIModelExecutor(), TeamPolicy(max_parallel=min(4, max(1, concurrency))),
@@ -107,13 +126,13 @@ def engine(models: str | Path = DEFAULT_MODELS, concurrency: int = 4,
     compilers: dict[str, ContextCompiler] = {}
     def project_context(node, plan):
         compiler = compilers.setdefault(plan.project, ContextCompiler(ROOT, ROOT, plan.project))
-        packet = compiler.compile(node.objective, budget_tokens=0, max_files=16)
+        packet = compiler.compile(node.objective, budget_tokens=0, max_files=16, role=node.role)
         return {"packet": packet.to_dict(), "agent": agents.context(node.role.lower(), project=plan.project)}
     return AutonomousEngine(
         ROOT, profiles, executor, max_parallel=concurrency,
         memory_context=lambda node, plan: brain.context(node.objective, agent=node.role, project=plan.project, limit=10),
         project_context=project_context,
-        learning_hook=lambda run_id, plan, run: learn_from_run(run_id, plan, run, brain, agents),
+        learning_hook=lambda run_id, plan, run: learn_from_run(run_id, plan, run, brain, agents, experience),
     )
 
 
@@ -882,9 +901,24 @@ def parser() -> argparse.ArgumentParser:
     q = sub.add_parser("world-sync", help="build/update the living project world model")
     q.add_argument("--root", default=str(ROOT), help="project repository root")
     q.add_argument("--project", default="default")
+    q.add_argument("--full", action="store_true", help="verify all file contents with a full scan")
 
     q = sub.add_parser("world-status", help="show current project world model statistics")
     q.add_argument("--root", default=str(ROOT)); q.add_argument("--project", default="default")
+
+    q = sub.add_parser("world-events", help="read ordered World Model changes after a cursor")
+    q.add_argument("--root", default=str(ROOT)); q.add_argument("--project", default="default")
+    q.add_argument("--after", type=int, default=0); q.add_argument("--limit", type=int, default=50)
+
+    q = sub.add_parser("kernel-observe", help="sync repository changes and prepare retrieval/capsule caches")
+    q.add_argument("--root", default=str(ROOT)); q.add_argument("--project", default="default")
+
+    q = sub.add_parser("kernel-watch", help="poll repository changes and prepare caches after a quiet period")
+    q.add_argument("--root", default=str(ROOT)); q.add_argument("--project", default="default")
+    q.add_argument("--interval-ms", type=int, default=1000); q.add_argument("--debounce-ms", type=int, default=500)
+
+    q = sub.add_parser("mcp-server", help="serve Galaxy context through MCP over stdio")
+    q.add_argument("--galaxy-home", help="writable Galaxy state directory (or set GALAXY_HOME)")
 
     q = sub.add_parser("world-related", help="show dependency-neighborhood for a file or symbol")
     q.add_argument("seed"); q.add_argument("--root", default=str(ROOT)); q.add_argument("--project", default="default")
@@ -901,12 +935,63 @@ def parser() -> argparse.ArgumentParser:
     q.add_argument("task"); q.add_argument("--root", default=str(ROOT)); q.add_argument("--project", default="default")
     q.add_argument("--budget-tokens", type=int, default=0, help="0 = adaptive budget")
     q.add_argument("--max-candidates", type=int, default=72); q.add_argument("--max-files", type=int, default=16)
+    q.add_argument("--semantic-mode", choices=("auto", "exact", "ann"), default="auto")
     q.add_argument("--refresh", action="store_true")
 
     q = sub.add_parser("context-build", help="compile an Attention-Engine task context packet")
     q.add_argument("task"); q.add_argument("--root", default=str(ROOT)); q.add_argument("--project", default="default")
     q.add_argument("--budget-tokens", type=int, default=0, help="0 = adaptive budget"); q.add_argument("--max-files", type=int, default=16)
+    q.add_argument("--role", default="", help="agent role for experience routing")
+    q.add_argument("--owner-id", help="authenticated user scope for private experience")
+    q.add_argument("--team-id", help="authorized team scope for shared experience")
     q.add_argument("--refresh", action="store_true"); q.add_argument("--out")
+
+    q = sub.add_parser("experience-record", help="record a sourced task episode")
+    q.add_argument("task"); q.add_argument("summary"); q.add_argument("--project", required=True)
+    q.add_argument("--root", default=str(ROOT), help="repository root for experience isolation")
+    q.add_argument("--role", required=True); q.add_argument("--agent-id", required=True)
+    q.add_argument("--run-id", required=True); q.add_argument("--node-id", required=True)
+    q.add_argument("--outcome", choices=("success", "failure", "blocked"), required=True)
+    q.add_argument("--lesson", default=""); q.add_argument("--evidence", action="append", default=[])
+    q.add_argument("--visibility", choices=("project", "private", "team"), default="project")
+    q.add_argument("--owner-id"); q.add_argument("--team-id")
+    q.add_argument("--confidence", type=float, default=.5); q.add_argument("--verified", action="store_true")
+
+    q = sub.add_parser("experience-search", help="inspect visible task episodes and candidate procedures")
+    q.add_argument("task"); q.add_argument("--project", required=True); q.add_argument("--role", default="")
+    q.add_argument("--root", default=str(ROOT), help="repository root for experience isolation")
+    q.add_argument("--owner-id"); q.add_argument("--team-id"); q.add_argument("--limit", type=int, default=5)
+
+    q = sub.add_parser("experience-retract", help="retract an incorrect episode")
+    q.add_argument("id"); q.add_argument("--root", default=str(ROOT))
+
+    q = sub.add_parser("experience-eval", help="offline sequential-task continuity diagnostic")
+    q.add_argument("dataset"); q.add_argument("--repo", required=True)
+    q.add_argument("--budget-tokens", type=int, default=5000)
+    q.add_argument("--max-files", type=int, default=16); q.add_argument("--out")
+
+    q = sub.add_parser("rule-suggest", help="propose a verification rule from evidenced failures")
+    q.add_argument("--project", required=True); q.add_argument("--lesson", required=True)
+    q.add_argument("--task-type", choices=("general", "bugfix", "feature"), required=True)
+    q.add_argument("--check", choices=("require_command", "require_evidence"), required=True)
+    q.add_argument("--match", default="", help="literal required command fragment")
+    q.add_argument("--minimum", type=int, default=3)
+
+    q = sub.add_parser("rule-eval", help="replay candidate command rule against labeled plans")
+    q.add_argument("id"); q.add_argument("dataset", help="JSON list of {plan, should_block}")
+
+    q = sub.add_parser("rule-show", help="inspect verification rule and evidence")
+    q.add_argument("id")
+
+    q = sub.add_parser("rule-promote", help="explicitly activate an evaluated rule")
+    q.add_argument("id"); q.add_argument("--by", required=True)
+
+    q = sub.add_parser("rule-disable", help="disable an active verification rule")
+    q.add_argument("id")
+
+    q = sub.add_parser("context-overview", help="read compact component maps before full task context")
+    q.add_argument("task"); q.add_argument("--root", default=str(ROOT)); q.add_argument("--project", default="default")
+    q.add_argument("--limit", type=int, default=2); q.add_argument("--refresh", action="store_true")
 
     q = sub.add_parser("contextbench-run", help="export Galaxy predictions for the independent ContextBench dataset")
     q.add_argument("dataset", help="official ContextBench .parquet or .jsonl")
@@ -914,9 +999,36 @@ def parser() -> argparse.ArgumentParser:
     g.add_argument("--repo", help="local Git repository for a single-repository subset")
     g.add_argument("--repos-dir", help="local Git mirrors under OWNER/REPO")
     q.add_argument("--token-budget", type=int, default=10000); q.add_argument("--max-files", type=int, default=20)
+    q.add_argument("--semantic-mode", choices=("auto", "exact", "ann"), default="auto")
     q.add_argument("--limit", type=int, default=0, help="0 = all tasks")
     q.add_argument("--out", default="benchmarks/contextbench-predictions.jsonl")
     q.add_argument("--evaluate", help="run installed upstream ContextBench evaluator; write scores to this JSONL path")
+    q.add_argument("--cache", help="repository cache for upstream evaluator")
+
+    q = sub.add_parser("repobench-r-run", help="evaluate Galaxy snippet ranking on exported RepoBench-R JSONL")
+    q.add_argument("dataset", help="RepoBench-R JSONL with candidate snippets and gold_snippet_index")
+    q.add_argument("--limit", type=int, default=0, help="0 = all rows")
+    q.add_argument("--semantic-mode", choices=("auto", "exact"), default="auto")
+    q.add_argument("--out-dir", default="benchmarks/repobench-r")
+
+    q = sub.add_parser("contextbench-compare", help="paired exact/ANN ContextBench comparison on one identical task slice")
+    q.add_argument("dataset", help="official ContextBench .parquet or .jsonl")
+    g = q.add_mutually_exclusive_group(required=True)
+    g.add_argument("--repo", help="local Git repository for a single-repository subset")
+    g.add_argument("--repos-dir", help="local Git mirrors under OWNER/REPO")
+    q.add_argument("--token-budget", type=int, default=10000); q.add_argument("--max-files", type=int, default=20)
+    q.add_argument("--limit", type=int, default=0, help="0 = all tasks")
+    q.add_argument("--out-dir", default="benchmarks/contextbench-ann-compare")
+    q.add_argument("--evaluate", action="store_true", help="run upstream evaluator on both prediction files")
+    q.add_argument("--cache", help="repository cache for upstream evaluator")
+
+    q = sub.add_parser("contextbench-graph-compare", help="fixed three-task Django baseline vs one-hop graph ablation")
+    q.add_argument("dataset", help="official ContextBench .parquet or .jsonl")
+    g = q.add_mutually_exclusive_group(required=True)
+    g.add_argument("--repo", help="local Git mirror of django/django")
+    g.add_argument("--repos-dir", help="local Git mirrors under OWNER/REPO")
+    q.add_argument("--out-dir", default="benchmarks/django-one-hop-graph")
+    q.add_argument("--evaluate", action="store_true", help="run upstream evaluator for baseline and one-hop predictions")
     q.add_argument("--cache", help="repository cache for upstream evaluator")
 
     q = sub.add_parser("decision-classify", help="confidence-gated narrow task classification")
@@ -951,7 +1063,7 @@ def main() -> int:
             "team-status", "team-list", "migrate", "models", "doctor",
             "dispatch", "ask", "logs",
             "guardrail", "decide", "route", "decision-stats", "vault",
-            "world-sync", "world-status", "world-related", "world-drift", "future-impact", "attention-build", "context-build", "contextbench-run", "decision-classify", "brain-state", "brain-reconcile",
+            "world-sync", "world-status", "world-events", "kernel-observe", "kernel-watch", "mcp-server", "world-related", "world-drift", "future-impact", "attention-build", "context-build", "context-overview", "experience-record", "experience-search", "experience-retract", "experience-eval", "rule-suggest", "rule-eval", "rule-show", "rule-promote", "rule-disable", "contextbench-run", "contextbench-compare", "contextbench-graph-compare", "repobench-r-run", "decision-classify", "brain-state", "brain-reconcile",
         }
         if sys.argv[1] not in known_cmds:
             raw_query = sys.argv[1]
@@ -1352,10 +1464,28 @@ def main() -> int:
             }, ensure_ascii=False, indent=2)); return 0
         if args.command == "world-sync":
             world = ProjectWorldModel(ROOT, args.root, args.project)
-            snap, drift = world.sync_with_drift()
-            print(json.dumps({"project": snap.project, "root": snap.root, **snap.stats, "generated_at": snap.generated_at, "drift": drift.to_dict()}, ensure_ascii=False, indent=2)); return 0
+            snap, drift = world.sync_with_drift(full=args.full)
+            print(json.dumps({"project": snap.project, "root": snap.root, **snap.stats, "generated_at": snap.generated_at, "sync": world.last_sync, "drift": drift.to_dict()}, ensure_ascii=False, indent=2)); return 0
         if args.command == "world-status":
             print(json.dumps(ProjectWorldModel(ROOT, args.root, args.project).status(), ensure_ascii=False, indent=2)); return 0
+        if args.command == "world-events":
+            items = ProjectWorldModel(ROOT, args.root, args.project).events(after_id=args.after, limit=args.limit)
+            print(json.dumps({"events": items, "next_cursor": items[-1]["id"] if items else args.after}, ensure_ascii=False, indent=2)); return 0
+        if args.command == "kernel-observe":
+            result = KernelProjector(ROOT, args.root, args.project).observe()
+            print(json.dumps(result, ensure_ascii=False, indent=2)); return 0
+        if args.command == "kernel-watch":
+            watcher = KernelWatcher(KernelProjector(ROOT, args.root, args.project),
+                                    interval=args.interval_ms / 1000, debounce=args.debounce_ms / 1000)
+            try:
+                watcher.run(on_update=lambda result: print(json.dumps(result, ensure_ascii=False), flush=True),
+                            on_error=lambda exc: print(f"WATCH ERROR: {exc}", file=sys.stderr, flush=True))
+            except KeyboardInterrupt:
+                return 0
+        if args.command == "mcp-server":
+            from galaxy_core.mcp_server import run_server
+            run_server(galaxy_home=args.galaxy_home)
+            return 0
         if args.command == "world-related":
             items = ProjectWorldModel(ROOT, args.root, args.project).related(args.seed, depth=args.depth, limit=args.limit)
             print(json.dumps(items, ensure_ascii=False, indent=2)); return 0
@@ -1368,15 +1498,18 @@ def main() -> int:
             print(json.dumps(scenario.to_dict(), ensure_ascii=False, indent=2)); return 0
         if args.command == "attention-build":
             world = ProjectWorldModel(ROOT, args.root, args.project)
-            snap = world.sync() if args.refresh else world.load()
+            snap = world.sync() if args.refresh else world.current()
             result = AttentionEngine(args.root, args.project).build(
                 args.task, snap, budget_tokens=args.budget_tokens if args.budget_tokens > 0 else None,
                 max_candidates=args.max_candidates, max_files=args.max_files,
+                semantic_mode=args.semantic_mode,
             )
             print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2)); return 0
         if args.command == "context-build":
             compiler = ContextCompiler(ROOT, args.root, args.project)
-            packet = compiler.compile(args.task, budget_tokens=args.budget_tokens, max_files=args.max_files, refresh_world=args.refresh)
+            packet = compiler.compile(args.task, budget_tokens=args.budget_tokens, max_files=args.max_files,
+                                      role=args.role, owner_id=args.owner_id, team_id=args.team_id,
+                                      refresh_world=args.refresh)
             if args.out:
                 out = Path(args.out)
                 if not out.is_absolute(): out = ROOT / out
@@ -1386,18 +1519,93 @@ def main() -> int:
             else:
                 print(packet.to_markdown())
             return 0
+        if args.command == "experience-record":
+            eid = ExperienceStore(ROOT, args.root).record(project=args.project, task=args.task, summary=args.summary,
+                role=args.role, agent_id=args.agent_id, run_id=args.run_id, node_id=args.node_id,
+                outcome=args.outcome, lesson=args.lesson, evidence=args.evidence,
+                visibility=args.visibility, owner_id=args.owner_id, team_id=args.team_id,
+                confidence=args.confidence, verified=args.verified)
+            print(json.dumps({"id": eid}, ensure_ascii=False)); return 0
+        if args.command == "experience-search":
+            store = ExperienceStore(ROOT, args.root)
+            print(json.dumps({"episodes": store.relevant(args.task, project=args.project,
+                role=args.role, owner_id=args.owner_id, team_id=args.team_id, limit=args.limit),
+                "pattern_candidates": store.patterns(project=args.project,
+                    owner_id=args.owner_id, team_id=args.team_id)}, ensure_ascii=False, indent=2)); return 0
+        if args.command == "experience-retract":
+            ExperienceStore(ROOT, args.root).retract(args.id)
+            print(json.dumps({"id": args.id, "status": "retracted"})); return 0
+        if args.command == "experience-eval":
+            report = evaluate_continuity(json.loads(Path(args.dataset).read_text(encoding="utf-8")),
+                                         args.repo, budget_tokens=args.budget_tokens, max_files=args.max_files)
+            if args.out:
+                Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            print(json.dumps(report, ensure_ascii=False, indent=2)); return 0
+        if args.command == "rule-suggest":
+            rid = VerificationStore(ROOT).suggest_from_failures(ExperienceStore(ROOT),
+                project=args.project, lesson=args.lesson, task_type=args.task_type,
+                check_kind=args.check, match_text=args.match, minimum=args.minimum)
+            print(json.dumps(VerificationStore(ROOT).get(rid), ensure_ascii=False, indent=2)); return 0
+        if args.command == "rule-eval":
+            cases = json.loads(Path(args.dataset).read_text(encoding="utf-8"))
+            report = VerificationStore(ROOT).evaluate(args.id, [
+                (ExecutionPlan.from_dict(c["plan"]), c["should_block"], c.get("result_evidence", [])) for c in cases])
+            print(json.dumps(report, ensure_ascii=False, indent=2)); return 0
+        if args.command == "rule-show":
+            print(json.dumps(VerificationStore(ROOT).get(args.id), ensure_ascii=False, indent=2)); return 0
+        if args.command == "rule-promote":
+            store = VerificationStore(ROOT); store.promote(args.id, by=args.by)
+            print(json.dumps(store.get(args.id), ensure_ascii=False, indent=2)); return 0
+        if args.command == "rule-disable":
+            store = VerificationStore(ROOT); store.disable(args.id)
+            print(json.dumps(store.get(args.id), ensure_ascii=False, indent=2)); return 0
+        if args.command == "context-overview":
+            result = ContextCompiler(ROOT, args.root, args.project).overview(
+                args.task, refresh_world=args.refresh, limit=args.limit
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2)); return 0
         if args.command == "contextbench-run":
             dataset_path = Path(args.dataset)
             if not dataset_path.is_absolute(): dataset_path = ROOT / dataset_path
             out = Path(args.out)
             if not out.is_absolute(): out = ROOT / out
             summary = export_predictions(dataset_path, out, repo=args.repo, repos_dir=args.repos_dir,
-                                         limit=args.limit, token_budget=args.token_budget, max_files=args.max_files)
+                                         limit=args.limit, token_budget=args.token_budget, max_files=args.max_files,
+                                         semantic_mode=args.semantic_mode)
             if args.evaluate and summary["completed"]:
                 scores = Path(args.evaluate)
                 if not scores.is_absolute(): scores = ROOT / scores
                 evaluate_predictions(dataset_path, out, scores, cache=args.cache)
                 summary["scores"] = str(scores)
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
+            return 1 if summary["failures"] or not summary["completed"] else 0
+        if args.command == "contextbench-compare":
+            dataset_path = Path(args.dataset)
+            if not dataset_path.is_absolute(): dataset_path = ROOT / dataset_path
+            out_dir = Path(args.out_dir)
+            if not out_dir.is_absolute(): out_dir = ROOT / out_dir
+            summary = compare_exact_ann(dataset_path, out_dir, repo=args.repo, repos_dir=args.repos_dir,
+                                        limit=args.limit, token_budget=args.token_budget,
+                                        max_files=args.max_files, evaluate=args.evaluate, cache=args.cache)
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
+            return 1 if summary["failures"]["exact"] or summary["failures"]["ann"] or not summary["paired"] else 0
+        if args.command == "contextbench-graph-compare":
+            dataset_path = Path(args.dataset)
+            if not dataset_path.is_absolute(): dataset_path = ROOT / dataset_path
+            out_dir = Path(args.out_dir)
+            if not out_dir.is_absolute(): out_dir = ROOT / out_dir
+            summary = compare_one_hop_graph(dataset_path, out_dir, repo=args.repo,
+                                            repos_dir=args.repos_dir, evaluate=args.evaluate,
+                                            cache=args.cache)
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
+            return 1 if summary["missing_instance_ids"] or summary["failures"]["baseline"] or summary["failures"]["one_hop"] else 0
+        if args.command == "repobench-r-run":
+            dataset_path = Path(args.dataset)
+            if not dataset_path.is_absolute(): dataset_path = ROOT / dataset_path
+            out_dir = Path(args.out_dir)
+            if not out_dir.is_absolute(): out_dir = ROOT / out_dir
+            summary = run_repobench_r(dataset_path, out_dir, limit=args.limit,
+                                      semantic_mode=args.semantic_mode)
             print(json.dumps(summary, ensure_ascii=False, indent=2))
             return 1 if summary["failures"] or not summary["completed"] else 0
         if args.command == "decision-classify":

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 
-VERSION = '3.2.1-alpha.2-contextbench'
+VERSION = '3.2.1-alpha.18-verification'
 
 def atomic_json(path, value):
     path = Path(path)
