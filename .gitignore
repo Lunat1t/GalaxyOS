@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+*.secret
+
+# Generated local runtime state
+data/brain/
+data/runtime/
+data/runs/
+data/planning/
+data/team-planning/
+data/teams/
+data/briefs/
+
+# Generated reports
+TEST_RESULTS.json
+benchmark-result.json
