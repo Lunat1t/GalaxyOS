@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "galaxy-second-brain"
+version = "1.0.0"
+description = "Local-first second brain and memory system for people and AI agents"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+galaxy = "galaxy:main"
+
+[tool.setuptools]
+py-modules = ["galaxy"]
+
+[tool.setuptools.packages.find]
+include = ["galaxy_core*"]
+
+[tool.setuptools.package-data]
+galaxy_core = ["resources/**/*.json", "resources/**/*.md", "resources/*.json"]

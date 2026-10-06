@@ -1,0 +1,25 @@
+# Local user memory and runtime state
+data/
+# Secrets
+.env
+.env.*
+!.env.example
+# Python generated files
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.venv-*/
+venv/
+build/
+dist/
+.pytest_cache/
+.coverage
+# Other generated files
+node_modules/
+*.log
+.DS_Store
+# Local agent and cloud configuration
+.codex/
+.agents/
+.aws/

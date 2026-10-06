@@ -1,0 +1,14 @@
+{
+  "version": "3.2.1-alpha.19-evidence-integrity",
+  "tested_at": "2026-09-27T15:55:28.699035+00:00",
+  "python_tests": 146,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 2,
+  "calculator_pass": true,
+  "duration_seconds": 4.127,
+  "live_llm_tested": false,
+  "live_provider": "No reachable live LLM endpoint found",
+  "scope": "Galaxy 3.2.1 Context OS: verification contracts, evidence integrity and rule replay, experience continuity, ContextBench and RepoBench-R adapters, Attention Engine, Project World Model, Context Compiler, Brain, DAG engine, agents/Moons, Vault FS, subprocess and Node fixture.",
+  "passed": true
+}

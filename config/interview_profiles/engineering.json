@@ -1,0 +1,306 @@
+{
+  "name": "engineering",
+  "title": "Инженерная архитектура / Technical Architecture",
+  "description": "Профиль для проектирования программных систем, архитектурных модулей, API-контрактов, баз данных и инфраструктуры.",
+  "keywords": [
+    "архитектур", "архитектура", "рефактор", "рефакторинг", "бэкенд", "backend", "api", "engineering", "код", "база данных",
+    "бд", "инфраструктура", "микросервис", "performance", "производительность",
+    "технический", "стек", "оптимизац", "оптимизация", "сервер", "devops", "sql", "sqlite",
+    "модуль", "интерфейс", "структура", "паттерн", "framework", "postgres"
+  ],
+  "match_patterns": [
+    "^(спроектируй|перепиши|отрефактори|оптимизируй|настрой|сделать архитектуру|разработать архитектуру)\\b",
+    "(технический долг|архитектур|база данных|микросервис|рефакторинг)"
+  ],
+  "default_depth": "deep",
+  "categories": {
+    "quick": [
+      "system_goal", "tech_stack", "existing_codebase", "core_components",
+      "data_storage", "api_contracts", "performance_scale", "engineering_constraints"
+    ],
+    "deep": [
+      "system_goal", "tech_stack", "existing_codebase", "core_components",
+      "data_storage", "api_contracts", "performance_scale", "engineering_constraints",
+      "failure_modes", "security_auth", "observability", "deployment_infra",
+      "testing_strategy", "migration_plan", "concurrency_model", "autonomy"
+    ],
+    "exhaustive": [
+      "system_goal", "tech_stack", "existing_codebase", "core_components",
+      "data_storage", "api_contracts", "performance_scale", "engineering_constraints",
+      "failure_modes", "security_auth", "observability", "deployment_infra",
+      "testing_strategy", "migration_plan", "concurrency_model", "autonomy",
+      "tech_debt", "disaster_recovery"
+    ]
+  },
+  "dependencies": [
+    ["system_goal", "existing_codebase"],
+    ["existing_codebase", "tech_stack"],
+    ["tech_stack", "core_components"],
+    ["core_components", "data_storage"],
+    ["core_components", "api_contracts"],
+    ["core_components", "failure_modes"],
+    ["core_components", "performance_scale"],
+    ["data_storage", "security_auth"],
+    ["api_contracts", "observability"],
+    ["core_components", "deployment_infra"],
+    ["core_components", "testing_strategy"],
+    ["existing_codebase", "migration_plan"],
+    ["performance_scale", "concurrency_model"],
+    ["testing_strategy", "tech_debt"],
+    ["deployment_infra", "disaster_recovery"]
+  ],
+  "questions": {
+    "system_goal": {
+      "id": "Q_ENG_GOAL",
+      "category": "system_goal",
+      "text": "Какова главная техническая цель проектируемой системы или подсистемы?",
+      "why": "Архитектура должна отвечать конкретной технической задаче, а не абстрактным пожеланиям.",
+      "alternatives": [
+        {"id": "A", "text": "Создание модульного ядра с чёткими интерфейсами и слабой связностью", "description": "Модульная архитектура"},
+        {"id": "B", "text": "Рефакторинг и оптимизация существующего монолита для масштабирования", "description": "Оптимизация монолита"},
+        {"id": "C", "text": "Разработка высокопроизводительного сервиса обработки потоковых данных", "description": "Потоковая обработка"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Модульное ядро с чёткими границами легче всего развивать и тестировать.",
+      "allow_custom": true
+    },
+    "existing_codebase": {
+      "id": "Q_ENG_CODEBASE",
+      "category": "existing_codebase",
+      "text": "Каково текущее состояние кодовой базы и сопутствующих компонентов?",
+      "why": "Позволяет сохранить совместимость и переиспользовать готовые модули вместо изобретения велосипеда.",
+      "alternatives": [
+        {"id": "A", "text": "Есть зрелый Python-репозиторий со сложившейся структурой и тестами", "description": "Зрелый проект"},
+        {"id": "B", "text": "Есть разрозненные скрипты и прототипы, требующие унификации", "description": "Прототипы"},
+        {"id": "C", "text": "Проект разрабатывается с чистого листа", "description": "Чистый старт"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Опора на существующие соглашения и тесты минимизирует риски регрессии.",
+      "allow_custom": true
+    },
+    "tech_stack": {
+      "id": "Q_ENG_STACK",
+      "category": "tech_stack",
+      "text": "Какой технологический стек и зависимости являются предпочтительными?",
+      "why": "Выбор стека определяет доступные библиотеки, переносимость и простоту развёртывания.",
+      "alternatives": [
+        {"id": "A", "text": "Стандартная библиотека Python + встроенная SQLite без внешних зависимостей", "description": "Zero-dependency Python"},
+        {"id": "B", "text": "Python с проверенными библиотеками (Pydantic, SQLAlchemy, FastApi)", "description": "Современный Python-стек"},
+        {"id": "C", "text": "Полиглотный стек с компилируемыми модулями (Go/Rust/C) для критических секций", "description": "Гибридный стек"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Стандартная библиотека гарантирует лёгкую установку и максимальную надёжность.",
+      "allow_custom": true
+    },
+    "core_components": {
+      "id": "Q_ENG_COMPONENTS",
+      "category": "core_components",
+      "text": "Какие основные слои и модули должны быть выделены в архитектуре?",
+      "why": "Разделение ответственности упрощает параллельную работу и тестирование.",
+      "alternatives": [
+        {"id": "A", "text": "Слои: Модели данных -> Детерминированное ядро (State Machine) -> Хранилище -> Адаптеры", "description": "Многослойная архитектура"},
+        {"id": "B", "text": "Событийно-ориентированная шина (Event Bus / DAG)", "description": "Event-driven"},
+        {"id": "C", "text": "Микроядерная плагинная архитектура с динамической загрузкой", "description": "Плагины"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Чёткое разделение моделей, ядра и адаптеров обеспечивает строгий детерминизм.",
+      "allow_custom": true
+    },
+    "data_storage": {
+      "id": "Q_ENG_STORAGE",
+      "category": "data_storage",
+      "text": "Как организовано хранение состояния, персистентность и транзакции?",
+      "why": "Свойства хранилища определяют целостность данных и устойчивость к сбоям.",
+      "alternatives": [
+        {"id": "A", "text": "Локальная SQLite база данных с WAL-режимом и строгими транзакциями", "description": "SQLite WAL"},
+        {"id": "B", "text": "Файловое JSON/YAML хранилище с атомарной записью через tmp-файлы", "description": "Атомарный JSON"},
+        {"id": "C", "text": "Внешняя СУБД (PostgreSQL / Redis)", "description": "Внешняя БД"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "SQLite с WAL даёт ACID-транзакции без необходимости запуска отдельного сервера.",
+      "allow_custom": true
+    },
+    "api_contracts": {
+      "id": "Q_ENG_API",
+      "category": "api_contracts",
+      "text": "Каким образом оформляются контракты взаимодействия (CLI, Python API, REST, IPC)?",
+      "why": "Контракты обеспечивают обратную совместимость и предсказуемость интеграции.",
+      "alternatives": [
+        {"id": "A", "text": "Типизированный Python API (dataclasses/protocols) + CLI с JSON выводом", "description": "Python + CLI JSON"},
+        {"id": "B", "text": "REST API со строгими OpenAPI/JSON-Schema спецификациями", "description": "REST OpenAPI"},
+        {"id": "C", "text": "Unix-сокетированный IPC / RPC протокол", "description": "IPC/RPC"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Python API вместе с JSON CLI даёт максимальную гибкость для скриптов и агентов.",
+      "allow_custom": true
+    },
+    "performance_scale": {
+      "id": "Q_ENG_PERF",
+      "category": "performance_scale",
+      "text": "Каковы требования к производительности, времени отклика и объёму данных?",
+      "why": "Требования к производительности влияют на выбор структур данных и алгоритмов.",
+      "alternatives": [
+        {"id": "A", "text": "Локальные интерактивные операции с откликом < 100 мс и памятью < 200 МБ", "description": "Быстрый отклик CLI"},
+        {"id": "B", "text": "Пакетная обработка сотен тысяч записей за секунды", "description": "High Throughput"},
+        {"id": "C", "text": "Специфических ограничений по скорости нет, в приоритете простота", "description": "Без строгих SLA"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Отклик до 100 мс обеспечивает мгновенный UX при работе человека и агента.",
+      "allow_custom": true
+    },
+    "engineering_constraints": {
+      "id": "Q_ENG_CONSTRAINTS",
+      "category": "engineering_constraints",
+      "text": "Какие обязательные инженерные ограничения должны соблюдаться?",
+      "why": "Несоблюдение ограничений может сломать существующие пайплайны или окружение.",
+      "alternatives": [
+        {"id": "A", "text": "Обратная совместимость со старыми форматами данных и версиями Python 3.10+", "description": "Совместимость 3.10+"},
+        {"id": "B", "text": "Строгая изоляция без сетевого доступа во время тестов", "description": "Офлайн-тестирование"},
+        {"id": "C", "text": "Кросс-платформенность без платформозависимых бинарников", "description": "Чистый Python"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Поддержка Python 3.10+ и сохранение обратной совместимости критичны для стабильности.",
+      "allow_custom": true
+    },
+    "failure_modes": {
+      "id": "Q_ENG_FAILURE",
+      "category": "failure_modes",
+      "text": "Как система должна вести себя при критических ошибках, невалидных данных или падениях?",
+      "why": "Грамотная обработка сбоев защищает от порчи данных и зависания процессов.",
+      "alternatives": [
+        {"id": "A", "text": "Fail-safe: немедленный откат транзакции, фиксация ошибки в логе и сохранение состояния", "description": "Транзакционный откат"},
+        {"id": "B", "text": "Graceful degradation: продолжение работы с частичной функциональностью", "description": "Деградация"},
+        {"id": "C", "text": "Fail-fast: немедленное аварийное завершение процесса с кодом ошибки", "description": "Быстрый краш"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Откат с сохранением состояния гарантирует, что подтверждённые данные не потеряются.",
+      "allow_custom": true
+    },
+    "security_auth": {
+      "id": "Q_ENG_SECURITY",
+      "category": "security_auth",
+      "text": "Какие требования к безопасности, маскированию секретов и аутентификации?",
+      "why": "Утечка токенов и ключей API недопустима при передаче контекста сторонним провайдерам.",
+      "alternatives": [
+        {"id": "A", "text": "Автоматическое маскирование секретов по регулярным выражениям перед экспортом/вызовом провайдера", "description": "Автомаскирование"},
+        {"id": "B", "text": "Хранение секретов в системном keyring / переменных окружения", "description": "Keyring/Env"},
+        {"id": "C", "text": "Изолированная среда без секретов в кодовой базе", "description": "Изоляция"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Автоматическая редукция секретов гарантирует защиту даже при ошибке пользователя.",
+      "allow_custom": true
+    },
+    "observability": {
+      "id": "Q_ENG_OBSERVABILITY",
+      "category": "observability",
+      "text": "Как будет организовано логирование, аудит действий и отладка?",
+      "why": "Наблюдаемость необходима для расследования инцидентов и контроля действий агентов.",
+      "alternatives": [
+        {"id": "A", "text": "Структурированные JSONL-логи и запись истории изменений состояний в БД", "description": "JSONL + аудит в БД"},
+        {"id": "B", "text": "Стандартный вывод stderr/stdout с настраиваемым уровнем verbosity", "description": "Стандартный лог"},
+        {"id": "C", "text": "Внешние системы сбора метрик (Prometheus/OpenTelemetry)", "description": "OpenTelemetry"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Структурированный аудит в БД позволяет восстановить точную хронологию событий.",
+      "allow_custom": true
+    },
+    "deployment_infra": {
+      "id": "Q_ENG_DEPLOY",
+      "category": "deployment_infra",
+      "text": "Как осуществляется поставка, запуск и обновление решения?",
+      "why": "Удобство запуска влияет на скорость тестирования и внедрения.",
+      "alternatives": [
+        {"id": "A", "text": "Прямой запуск из репозитория без сборки и компиляции", "description": "Zero-build запуск"},
+        {"id": "B", "text": "Упаковка в wheel-пакет и установка через pip/pipx", "description": "Pipx-пакет"},
+        {"id": "C", "text": "Контейнеризация через Docker / OCI образ", "description": "Docker"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Запуск напрямую из репозитория идеален для локальной агентной среды.",
+      "allow_custom": true
+    },
+    "testing_strategy": {
+      "id": "Q_ENG_TESTING",
+      "category": "testing_strategy",
+      "text": "Какова стратегия тестирования и обеспечения качества?",
+      "why": "Тесты фиксируют архитектурные гарантии и защищают от багов.",
+      "alternatives": [
+        {"id": "A", "text": "Пирамида тестов: быстрые unit-тесты ядра + интеграционные тесты CLI и БД", "description": "Unit + Integration"},
+        {"id": "B", "text": "Только e2e тесты основных пользовательских сценариев", "description": "E2E тесты"},
+        {"id": "C", "text": "Property-based и fuzzing тестирование для поиска краевых случаев", "description": "Fuzzing"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Комбинация unit-тестов ядра и интеграционных тестов даёт лучший баланс скорости и надёжности.",
+      "allow_custom": true
+    },
+    "migration_plan": {
+      "id": "Q_ENG_MIGRATION",
+      "category": "migration_plan",
+      "text": "Как обеспечивается миграция схемы базы данных и совместимость существующих данных?",
+      "why": "Обновления не должны приводить к потере ранее накопленной памяти и сессий.",
+      "alternatives": [
+        {"id": "A", "text": "Аддитивная эволюция схемы (CREATE TABLE IF NOT EXISTS) без деструктивных изменений", "description": "Аддитивная эволюция"},
+        {"id": "B", "text": "Версионированные файлы миграций с автоматическим применением", "description": "Версионные миграции"},
+        {"id": "C", "text": "Экспорт старых данных и импорт в новую структуру при обновлении", "description": "Экспорт/импорт"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Аддитивная эволюция схемы исключает поломку старых сессий и таблиц.",
+      "allow_custom": true
+    },
+    "concurrency_model": {
+      "id": "Q_ENG_CONCURRENCY",
+      "category": "concurrency_model",
+      "text": "Какая модель конкурентности и параллелизма используется?",
+      "why": "Модель конкурентности определяет способы синхронизации и защиту от гонок.",
+      "alternatives": [
+        {"id": "A", "text": "Асинхронный event loop (asyncio) с защитой от одновременных записей в БД", "description": "Asyncio + WAL"},
+        {"id": "B", "text": "Многопроцессная модель с очередями задач", "description": "Multiprocessing"},
+        {"id": "C", "text": "Однопоточный строго последовательный синхронный поток", "description": "Синхронный поток"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Asyncio в сочетании с WAL-режимом SQLite даёт эффективную работу без блокировок.",
+      "allow_custom": true
+    },
+    "autonomy": {
+      "id": "Q_ENG_AUTONOMY",
+      "category": "autonomy",
+      "text": "Какие архитектурные изменения агент вправе делать самостоятельно?",
+      "why": "Контроль за изменениями архитектуры предотвращает несанкционированные переделки.",
+      "alternatives": [
+        {"id": "A", "text": "Агент анализирует и тестирует; любые изменения контрактов и запись кода только после Human Approval", "description": "Human Approval Gate"},
+        {"id": "B", "text": "Агент автономно реализует утверждённую спецификацию", "description": "Автономная реализация"},
+        {"id": "C", "text": "Ручной контроль каждой создаваемой функции", "description": "Пошаговый контроль"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Human Approval Gate перед записью кода гарантирует безопасность кодовой базы.",
+      "allow_custom": true
+    },
+    "tech_debt": {
+      "id": "Q_ENG_DEBT",
+      "category": "tech_debt",
+      "text": "Каков допустимый уровень временных упрощений и как он фиксируется?",
+      "why": "Недокументированный техдолг со временем замедляет развитие системы.",
+      "alternatives": [
+        {"id": "A", "text": "Все допущения и упрощения явно фиксируются как задачи в бэклоге и памяти Brain", "description": "Фиксация в Brain"},
+        {"id": "B", "text": "Никаких упрощений, реализация сразу по полному стандарту", "description": "Без компромиссов"},
+        {"id": "C", "text": "Временные заглушки с TODO-комментариями в коде", "description": "TODO в коде"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Явная фиксация допущений в памяти позволяет целенаправленно закрывать их в будущем.",
+      "allow_custom": true
+    },
+    "disaster_recovery": {
+      "id": "Q_ENG_DR",
+      "category": "disaster_recovery",
+      "text": "Как система восстанавливается после внезапного падения процесса или перезагрузки ОС?",
+      "why": "Восстановление после сбоев гарантирует целостность долгосрочных задач.",
+      "alternatives": [
+        {"id": "A", "text": "Автоматическое возобновление состояния из БД с места прерывания", "description": "Автовозобновление"},
+        {"id": "B", "text": "Откат к последнему стабильному бэкапу", "description": "Откат к бэкапу"},
+        {"id": "C", "text": "Ручной перезапуск сессии пользователем", "description": "Ручной перезапуск"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Durable execution с автовозобновлением из БД устраняет необходимость повторять пройденные шаги.",
+      "allow_custom": true
+    }
+  }
+}

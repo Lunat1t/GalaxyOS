@@ -1,0 +1,305 @@
+{
+  "name": "research",
+  "title": "Исследование и спайк / Research & Spike",
+  "description": "Профиль для глубоких исследовательских задач, сравнения технологий, бенчмарков, проверки гипотез и аналитических отчётов.",
+  "keywords": [
+    "исслед", "исследуй", "исследовать", "исследование", "research", "сравн", "сравни", "сравнить",
+    "сравнение", "vs", "versus", "анализ", "benchmark", "survey", "investigate", "explore",
+    "проверить гипотезу", "спайк", "spike", "изучить", "проанализировать", "бенчмарк", "аналитика", "опрос"
+  ],
+  "match_patterns": [
+    "^(исследуй|сравни|проанализируй|изучи|проверь|исследовать|сравнить)\\b",
+    "(research|spike|спайк|исследование|benchmark|бенчмарк|\\bvs\\b)"
+  ],
+  "default_depth": "deep",
+  "categories": {
+    "quick": [
+      "research_goal", "core_hypotheses", "current_knowledge", "evaluation_criteria",
+      "data_sources", "methodology", "constraints", "deliverable_type"
+    ],
+    "deep": [
+      "research_goal", "core_hypotheses", "current_knowledge", "evaluation_criteria",
+      "data_sources", "methodology", "constraints", "deliverable_type",
+      "comparison_matrix", "experiment_design", "risk_factors", "prototype_scope",
+      "timebox_budget", "autonomy", "decision_impact", "scope_boundaries"
+    ],
+    "exhaustive": [
+      "research_goal", "core_hypotheses", "current_knowledge", "evaluation_criteria",
+      "data_sources", "methodology", "constraints", "deliverable_type",
+      "comparison_matrix", "experiment_design", "risk_factors", "prototype_scope",
+      "timebox_budget", "autonomy", "decision_impact", "scope_boundaries",
+      "literature_review", "next_steps_roadmap"
+    ]
+  },
+  "dependencies": [
+    ["research_goal", "current_knowledge"],
+    ["research_goal", "core_hypotheses"],
+    ["core_hypotheses", "evaluation_criteria"],
+    ["evaluation_criteria", "data_sources"],
+    ["data_sources", "methodology"],
+    ["methodology", "experiment_design"],
+    ["evaluation_criteria", "comparison_matrix"],
+    ["core_hypotheses", "risk_factors"],
+    ["methodology", "prototype_scope"],
+    ["research_goal", "timebox_budget"],
+    ["evaluation_criteria", "deliverable_type"],
+    ["deliverable_type", "decision_impact"],
+    ["prototype_scope", "scope_boundaries"],
+    ["data_sources", "literature_review"],
+    ["decision_impact", "next_steps_roadmap"]
+  ],
+  "questions": {
+    "research_goal": {
+      "id": "Q_RES_GOAL",
+      "category": "research_goal",
+      "text": "Каков главный исследовательский вопрос и решение, которое будет принято по итогам?",
+      "why": "Чёткая цель исследования предохраняет от сбора бесполезной информации.",
+      "alternatives": [
+        {"id": "A", "text": "Сравнить 2–3 технологических подхода для выбора архитектурного стандарта", "description": "Сравнение технологий"},
+        {"id": "B", "text": "Оценить принципиальную осуществимость (Feasibility / Proof-of-Concept)", "description": "Проверка осуществимости"},
+        {"id": "C", "text": "Провести анализ производительности и узких мест (Profiling & Benchmark)", "description": "Бенчмарк и профилирование"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Сравнение конкретных альтернатив ведёт к однозначному архитектурному решению.",
+      "allow_custom": true
+    },
+    "core_hypotheses": {
+      "id": "Q_RES_HYPOTHESIS",
+      "category": "core_hypotheses",
+      "text": "Какие ключевые гипотезы или предположения требуют проверки?",
+      "why": "Гипотезы задают направление эксперимента и критерии фальсифицируемости.",
+      "alternatives": [
+        {"id": "A", "text": "Предположение: подход X превосходит Y по простоте и надёжности без потери скорости", "description": "Превосходство простоты"},
+        {"id": "B", "text": "Предположение: интеграция существующей библиотеки закроет 90% потребностей", "description": "Готовая библиотека"},
+        {"id": "C", "text": "Предположение: собственная минимальная реализация эффективнее внешних зависимостей", "description": "Собственное ядро"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Фокус на надёжности и простоте даёт устойчивый долгосрочный результат.",
+      "allow_custom": true
+    },
+    "current_knowledge": {
+      "id": "Q_RES_KNOWLEDGE",
+      "category": "current_knowledge",
+      "text": "Что уже известно о предметной области из репозитория, документации или памяти Brain?",
+      "why": "Позволяет не повторять уже проведённый ранее анализ.",
+      "alternatives": [
+        {"id": "A", "text": "Есть зафиксированные решения в Obsidian Vault и коде репозитория", "description": "Опора на Brain"},
+        {"id": "B", "text": "Тема новая для проекта, требуется сбор первичных источников", "description": "Первичный сбор"},
+        {"id": "C", "text": "Есть противоречивые данные или устаревшие выводы, требующие актуализации", "description": "Актуализация данных"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Использование накопленных знаний в Brain экономит время и контекст.",
+      "allow_custom": true
+    },
+    "evaluation_criteria": {
+      "id": "Q_RES_CRITERIA",
+      "category": "evaluation_criteria",
+      "text": "По каким объективным критериям будут оцениваться варианты (скорость, надёжность, сложность)?",
+      "why": "Критерии сравнения должны быть определены до начала экспериментов во избежание предвзятости.",
+      "alternatives": [
+        {"id": "A", "text": "1. Надёжность и детерминизм, 2. Простота поддержки, 3. Отсутствие внешних зависимостей", "description": "Надёжность и автономность"},
+        {"id": "B", "text": "1. Максимальная пропускная способность и минимальная задержка", "description": "Сырая скорость"},
+        {"id": "C", "text": "1. Минимальное время внедрения и готовая экосистема", "description": "Скорость внедрения"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Надёжность и автономность — основополагающие ценности архитектуры Galaxy.",
+      "allow_custom": true
+    },
+    "data_sources": {
+      "id": "Q_RES_SOURCES",
+      "category": "data_sources",
+      "text": "Какие источники информации допустимы для исследования (локальные файлы, документация, веб)?",
+      "why": "Определяет границы сбора информации и требования к сохранению первоисточников.",
+      "alternatives": [
+        {"id": "A", "text": "Только локальный репозиторий, документация и Second Brain (read-only)", "description": "Только локальные данные"},
+        {"id": "B", "text": "Локальные данные + авторитетная публичная документация с фиксацией ссылок", "description": "Локально + веб с источниками"},
+        {"id": "C", "text": "Экспериментальные синтетические тесты и замеры производительности", "description": "Экспериментальные замеры"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Локальные данные полностью верифицируемы и не зависят от внешних факторов.",
+      "allow_custom": true
+    },
+    "methodology": {
+      "id": "Q_RES_METHODOLOGY",
+      "category": "methodology",
+      "text": "Какой метод исследования будет использован?",
+      "why": "Методология обеспечивает воспроизводимость результатов анализа.",
+      "alternatives": [
+        {"id": "A", "text": "Сравнительный анализ архитектурных паттернов с матрицей компромиссов (Trade-off matrix)", "description": "Trade-off матрица"},
+        {"id": "B", "text": "Создание изолированного мини-спайка (PoC) и запуск бенчмарков", "description": "PoC спайк"},
+        {"id": "C", "text": "Анализ исходного кода и аудит безопасности зависимостей", "description": "Аудит кода"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Матрица компромиссов наглядно объясняет основания для выбора.",
+      "allow_custom": true
+    },
+    "constraints": {
+      "id": "Q_RES_CONSTRAINTS",
+      "category": "constraints",
+      "text": "Какие жёсткие ограничения действуют на исследование (время, ресурсы, окружение)?",
+      "why": "Исследования без ограничений рискуют превратиться в бесконечный процесс.",
+      "alternatives": [
+        {"id": "A", "text": "Чёткий timebox (не более 1–2 часов работы) и фокус на практическом выводе", "description": "Жёсткий timebox"},
+        {"id": "B", "text": "Работа строго без установки сторонних системных пакетов и сервисов", "description": "Без инсталляций"},
+        {"id": "C", "text": "Результаты должны быть применимы в текущей версии системы без мажорного релиза", "description": "Совместимость с текущей версией"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Timebox гарантирует получение прикладного результата в обозримый срок.",
+      "allow_custom": true
+    },
+    "deliverable_type": {
+      "id": "Q_RES_DELIVERABLE",
+      "category": "deliverable_type",
+      "text": "В каком виде должен быть оформлен итог исследования?",
+      "why": "Формат отчёта определяет, как выводы будут использованы командой и агентами.",
+      "alternatives": [
+        {"id": "A", "text": "Markdown-спецификация в Obsidian Vault с матрицей сравнения и рекомендацией", "description": "Markdown отчёт в Vault"},
+        {"id": "B", "text": "Работающий прототип (спайк) в отдельной ветке или директории", "description": "Код прототипа"},
+        {"id": "C", "text": "Краткая выжимка (Executive Summary) для быстрого утверждения", "description": "Краткая выжимка"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Заметка в Obsidian Vault сохраняет знание в долгосрочной памяти организации.",
+      "allow_custom": true
+    },
+    "comparison_matrix": {
+      "id": "Q_RES_MATRIX",
+      "category": "comparison_matrix",
+      "text": "Какие конкретные альтернативы включаются в сравнительную таблицу?",
+      "why": "Явное перечисление вариантов структурирует процесс исследования.",
+      "alternatives": [
+        {"id": "A", "text": "Текущее решение vs. Рекомендуемый подход vs. Альтернатива из Open Source", "description": "3 ключевых варианта"},
+        {"id": "B", "text": "Сравнение 2 полярных подходов: минималистичный vs. полнофункциональный", "description": "2 полярных варианта"},
+        {"id": "C", "text": "Оценка одного решения по шкале применимости", "description": "Оценка одного кандидата"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Сравнение текущего состояния с двумя кандидатами даёт полную картину.",
+      "allow_custom": true
+    },
+    "experiment_design": {
+      "id": "Q_RES_EXPERIMENT",
+      "category": "experiment_design",
+      "text": "Как будет устроен практический эксперимент или бенчмарк?",
+      "why": "План эксперимента гарантирует объективность замеров.",
+      "alternatives": [
+        {"id": "A", "text": "Серия детерминированных тестов с замером времени выполнения и памяти на одинаковых данных", "description": "Контролируемый бенчмарк"},
+        {"id": "B", "text": "Качественная экспертная оценка удобства API и читаемости кода", "description": "Экспертная оценка"},
+        {"id": "C", "text": "Прогон на реальном сценарии из существующего пайплайна", "description": "Реальный сценарий"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Одинаковые тестовые данные обеспечивают честное сравнение кандидатов.",
+      "allow_custom": true
+    },
+    "risk_factors": {
+      "id": "Q_RES_RISKS",
+      "category": "risk_factors",
+      "text": "Какие риски несёт принятие каждого из исследуемых вариантов?",
+      "why": "Понимание скрытых рисков предотвращает выбор привлекательных, но опасных решений.",
+      "alternatives": [
+        {"id": "A", "text": "Риск скрытых багов, потери совместимости и зависимости от внешнего мейнтейнера", "description": "Риски зависимостей"},
+        {"id": "B", "text": "Риск чрезмерного усложнения кодовой базы и высокого порога входа", "description": "Сложность поддержки"},
+        {"id": "C", "text": "Риск нехватки производительности при росте нагрузки", "description": "Риск масштабирования"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Оценка рисков зависимостей и совместимости первична для надёжности.",
+      "allow_custom": true
+    },
+    "prototype_scope": {
+      "id": "Q_RES_PROTO_SCOPE",
+      "category": "prototype_scope",
+      "text": "Если создаётся спайк-прототип, какие границы его функциональности?",
+      "why": "Спайк не должен перерастать в полноценную разработку.",
+      "alternatives": [
+        {"id": "A", "text": "Только минимальный исполняемый скрипт проверки ключевого вызова (до 100 строк)", "description": "Микро-спайк"},
+        {"id": "B", "text": "Изолированный прототип с базовыми тестами в scratch-директории", "description": "Scratch прототип"},
+        {"id": "C", "text": "Без написания кода, ограничиться анализом документации и исходников", "description": "Теоретический анализ"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Микро-спайк до 100 строк быстро подтверждает гипотезу без засорения репозитория.",
+      "allow_custom": true
+    },
+    "timebox_budget": {
+      "id": "Q_RES_TIMEBOX",
+      "category": "timebox_budget",
+      "text": "Каков лимит вызовов моделей и шагов анализа для данного исследования?",
+      "why": "Контроль бюджета запросов предотвращает перерасход токенов.",
+      "alternatives": [
+        {"id": "A", "text": "Стандартный лимит: до 15 шагов анализа и запросов к моделям", "description": "Экономный бюджет"},
+        {"id": "B", "text": "Расширенный лимит: до 30 шагов для глубокого анализа", "description": "Глубокий бюджет"},
+        {"id": "C", "text": "Минимальный лимит: 5 шагов для быстрой справки", "description": "Экспресс-бюджет"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "15 шагов вполне достаточно для сбора фактов и формирования матрицы.",
+      "allow_custom": true
+    },
+    "autonomy": {
+      "id": "Q_RES_AUTONOMY",
+      "category": "autonomy",
+      "text": "Каковы полномочия исследовательских субагентов (Moons)?",
+      "why": "Исследовательские агенты должны быть безопасными и не производить несанкционированных записей.",
+      "alternatives": [
+        {"id": "A", "text": "Только безопасные read-only операции с кодом и памятью; запись только в отчёт", "description": "Strict Read-Only"},
+        {"id": "B", "text": "Разрешено создание временных файлов в scratch-директории", "description": "Scratch разрешён"},
+        {"id": "C", "text": "Каждый шаг поиска согласуется отдельно", "description": "Пошаговый контроль"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Строгий read-only режим полностью исключает случайные повреждения кодовой базы.",
+      "allow_custom": true
+    },
+    "decision_impact": {
+      "id": "Q_RES_IMPACT",
+      "category": "decision_impact",
+      "text": "Как результаты исследования повлияют на дальнейший план разработки?",
+      "why": "Связывает исследование с последующими этапами создания DAG и кодирования.",
+      "alternatives": [
+        {"id": "A", "text": "Выбранный вариант станет основой для генерации DAG-плана реализации в Sun", "description": "Основа для DAG"},
+        {"id": "B", "text": "Фиксация решения в Second Brain как постоянного архитектурного правила", "description": "Архитектурное правило"},
+        {"id": "C", "text": "Отказ от внедрения с сохранением обоснования в архиве", "description": "Обоснованный отказ"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Прямой переход от утверждённого отчёта к планированию обеспечивает непрерывность процесса.",
+      "allow_custom": true
+    },
+    "scope_boundaries": {
+      "id": "Q_RES_BOUNDARIES",
+      "category": "scope_boundaries",
+      "text": "Какие смежные темы или направления мы сознательно НЕ исследуем?",
+      "why": "Ограничение границ защищает фокус внимания исследования.",
+      "alternatives": [
+        {"id": "A", "text": "Не исследуем коммерческие платные API и закрытые проприетарные платформы", "description": "Без проприетарщины"},
+        {"id": "B", "text": "Не исследуем оптимизацию под экзотические аппаратные платформы", "description": "Без экзотики"},
+        {"id": "C", "text": "Не проводим нагрузочное стресс-тестирование на терабайтах данных", "description": "Без стресс-тестов"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Фокус на открытых и локальных технологиях соответствует принципам автономности.",
+      "allow_custom": true
+    },
+    "literature_review": {
+      "id": "Q_RES_LITERATURE",
+      "category": "literature_review",
+      "text": "Требуется ли обзор академических статей или официальных whitepapers?",
+      "why": "Научный обзор полезен для алгоритмически сложных задач (ML, криптография, графы).",
+      "alternatives": [
+        {"id": "A", "text": "Достаточно официальной инженерной документации и проверенных RFC/спецификаций", "description": "Инженерная документация"},
+        {"id": "B", "text": "Поиск и анализ научных статей на arXiv / Google Scholar", "description": "Научный поиск"},
+        {"id": "C", "text": "Только анализ исходного кода референсных реализаций", "description": "Анализ кода"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Инженерные спецификации дают наиболее практичные ориентиры для реализации.",
+      "allow_custom": true
+    },
+    "next_steps_roadmap": {
+      "id": "Q_RES_ROADMAP",
+      "category": "next_steps_roadmap",
+      "text": "Каковы рекомендуемые следующие шаги после завершения отчёта?",
+      "why": "План действий переводит результаты исследования в практическую плоскость.",
+      "alternatives": [
+        {"id": "A", "text": "Human Approval отчёта -> Формирование задач в бэклоге -> Реализация прототипа", "description": "Бэклог и реализация"},
+        {"id": "B", "text": "Дополнительный раунд обсуждения с архитекторами", "description": "Ревью с командой"},
+        {"id": "C", "text": "Проведение второго этапа исследования с более широким скоупом", "description": "Второй этап"}
+      ],
+      "recommendation": "A",
+      "recommendation_reason": "Чёткий переход от отчёта к бэклогу гарантирует быстрое внедрение выводов.",
+      "allow_custom": true
+    }
+  }
+}

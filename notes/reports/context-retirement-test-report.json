@@ -1,0 +1,23 @@
+{
+  "tested_at": "2026-10-06T13:51:30.034504+00:00",
+  "scope": "Local memory, vault, planning, agents, decisions and verification after context retirement",
+  "excluded": [
+    "live LLM integrations",
+    "provider mock HTTP server: socket denied by sandbox",
+    "chaos LLM suite: earlier full run interrupted after prolonged wait"
+  ],
+  "python_tests": 79,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 1,
+  "passed": true,
+  "smoke_checks": [
+    "Python sources parse",
+    "Experience survives reopen and preserves storage location",
+    "Private experience filtering and repository isolation",
+    "Retracted experience excluded",
+    "External memory requires provenance",
+    "Agent receives managed memory without repository packet"
+  ],
+  "smoke_passed": true
+}
