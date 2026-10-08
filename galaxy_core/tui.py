@@ -1,6 +1,7 @@
 """Small terminal workspace for selecting a Galaxy project."""
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 
@@ -33,7 +34,7 @@ def _prompt(window, curses, label: str) -> str:
     return raw.decode(sys.stdin.encoding or "utf-8", errors="replace").strip()
 
 
-def _draw(window, curses, registry: ProjectRegistry, selected: int, status: str) -> int:
+def _draw(window, curses, registry: ProjectRegistry, selected: int, status: str, view: str) -> int:
     window.erase()
     height, width = window.getmaxyx()
     if height < 8 or width < 40:
@@ -58,16 +59,27 @@ def _draw(window, curses, registry: ProjectRegistry, selected: int, status: str)
             window.addch(y, split, curses.ACS_VLINE)
         except curses.error:
             pass
-    window.addnstr(1, split + 2, "РАБОЧАЯ ОБЛАСТЬ", width - split - 3, curses.A_BOLD)
+    heading = "НАСТРОЙКИ ПРОЕКТА" if view == "settings" else "РАБОЧАЯ ОБЛАСТЬ"
+    window.addnstr(1, split + 2, heading, width - split - 3, curses.A_BOLD)
     project = projects[selected] if projects else registry.current()
     if project:
         window.addnstr(3, split + 2, f"{project.name}  ·  {project.id[:8]}", width - split - 3, curses.A_BOLD)
-        window.addnstr(4, split + 2, project.path, width - split - 3)
-        window.addnstr(5, split + 2, "Git: " + _branch(project.path), width - split - 3)
+        if view == "settings":
+            settings = json.dumps(project.settings, ensure_ascii=False, indent=2).splitlines()
+            if not settings:
+                settings = ["Настройки пока не заданы."]
+            for index, line in enumerate(settings[:max(0, height - 8)]):
+                window.addnstr(4 + index, split + 2, line, width - split - 3)
+            settings_command = f"Изменить: galaxy project settings {project.id} --set '{{}}'"
+            window.addnstr(height - 4, split + 2, settings_command,
+                           width - split - 3, curses.A_DIM)
+        else:
+            window.addnstr(4, split + 2, project.path, width - split - 3)
+            window.addnstr(5, split + 2, "Git: " + _branch(project.path), width - split - 3)
+            window.addnstr(7, split + 2, "Агент и задачи появятся на следующих шагах.", width - split - 3)
     else:
         window.addnstr(3, split + 2, "Откройте каталог проекта клавишей O.", width - split - 3)
-    window.addnstr(7, split + 2, "Агент и задачи появятся на следующих шагах.", width - split - 3)
-    window.addnstr(height - 2, 0, "↑/↓ выбрать   Enter открыть   O каталог   A добавить   Q выход",
+    window.addnstr(height - 2, 0, "↑/↓ выбрать   Enter открыть   O каталог   A добавить   S настройки   Q выход",
                    width - 1, curses.A_DIM)
     if status:
         window.addnstr(height - 1, 0, status, width - 1)
@@ -80,8 +92,9 @@ def _curses_main(window, curses, registry: ProjectRegistry) -> int:
     window.keypad(True)
     selected = 0
     status = ""
+    view = "overview"
     while True:
-        count = _draw(window, curses, registry, selected, status)
+        count = _draw(window, curses, registry, selected, status, view)
         key = window.get_wch()
         status = ""
         if key in ("q", "Q", "\x1b"):
@@ -90,6 +103,8 @@ def _curses_main(window, curses, registry: ProjectRegistry) -> int:
             selected = max(0, selected - 1)
         elif key in (curses.KEY_DOWN, "j"):
             selected = min(max(0, count - 1), selected + 1)
+        elif key in ("s", "S"):
+            view = "overview" if view == "settings" else "settings"
         elif key in ("o", "O", "a", "A"):
             value = _prompt(window, curses, "Путь к каталогу: ")
             if value:

@@ -642,6 +642,11 @@ def parser() -> argparse.ArgumentParser:
     project_open.add_argument("target", nargs="?", default=".")
     project_list = project_sub.add_parser("list", help="show recent projects")
     project_list.add_argument("--limit", type=int, default=20)
+    project_show = project_sub.add_parser("show", help="show project details")
+    project_show.add_argument("target", nargs="?")
+    project_settings = project_sub.add_parser("settings", help="show or update project settings")
+    project_settings.add_argument("target", nargs="?")
+    project_settings.add_argument("--set", dest="settings_json", help="JSON object with settings to update")
 
     # plan command
     q = sub.add_parser("plan", help="decompose a goal into a validated DAG")
@@ -1002,6 +1007,15 @@ def main() -> int:
             if args.project_action == "list":
                 print(json.dumps([item.to_dict() for item in projects.list_recent(args.limit)],
                                  ensure_ascii=False, indent=2))
+                return 0
+            if args.project_action in {"show", "settings"}:
+                result = projects.current() if args.target is None else projects.get(args.target)
+                if result is None:
+                    raise ValueError("No active project. Open a project first.")
+                if args.project_action == "settings" and args.settings_json is not None:
+                    updates = json.loads(args.settings_json)
+                    result = projects.update_settings(result.id, updates)
+                print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
                 return 0
         if args.command in {"interview", "grill"}:
             return interactive_interview(args)

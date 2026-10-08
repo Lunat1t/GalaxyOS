@@ -10,6 +10,12 @@ import sqlite3
 import sys
 import uuid
 
+PROJECT_SETTINGS = {
+    "default_agent_id", "default_provider", "model_profile", "skills", "mcp_servers", "permissions",
+}
+PROVIDERS = {"codex", "openrouter", "agy", "claude-code"}
+PERMISSION_VALUES = {"allow", "ask", "deny"}
+
 
 def user_data_dir() -> Path:
     """Return the per-user data directory without tying it to the install path."""
@@ -161,7 +167,20 @@ class ProjectRegistry:
             row = db.execute("SELECT * FROM projects WHERE id=?", (active["value"],)).fetchone()
             return self._project(row, active["value"]) if row else None
 
+    def get(self, project_id_or_path: str | Path) -> Project:
+        value = str(project_id_or_path)
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM projects WHERE id=?", (value,)).fetchone()
+            if not row:
+                directory = self._canonical_path(project_id_or_path)
+                row = db.execute("SELECT * FROM projects WHERE path=?", (str(directory),)).fetchone()
+            if not row:
+                raise KeyError(value)
+            active = db.execute("SELECT value FROM registry_state WHERE key='active_project'").fetchone()
+            return self._project(row, active["value"] if active else None)
+
     def save_settings(self, project_id: str, settings: dict) -> Project:
+        self._validate_settings(settings)
         encoded = json.dumps(settings, ensure_ascii=False, sort_keys=True)
         with self._connect() as db:
             cursor = db.execute("UPDATE projects SET settings_json=? WHERE id=?", (encoded, project_id))
@@ -170,3 +189,35 @@ class ProjectRegistry:
             active = db.execute("SELECT value FROM registry_state WHERE key='active_project'").fetchone()
             row = db.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
             return self._project(row, active["value"] if active else None)
+
+    def update_settings(self, project_id: str, updates: dict) -> Project:
+        current = self.get(project_id)
+        if not isinstance(updates, dict):
+            raise ValueError("settings update must be a JSON object")
+        return self.save_settings(project_id, {**current.settings, **updates})
+
+    @staticmethod
+    def _validate_settings(settings: dict) -> None:
+        if not isinstance(settings, dict):
+            raise ValueError("project settings must be a JSON object")
+        unknown = set(settings) - PROJECT_SETTINGS
+        if unknown:
+            raise ValueError(f"unsupported project settings: {', '.join(sorted(unknown))}")
+        for key in ("default_agent_id", "model_profile"):
+            if key in settings and not isinstance(settings[key], str):
+                raise ValueError(f"{key} must be a string")
+        if "default_provider" in settings:
+            provider = settings["default_provider"]
+            if not isinstance(provider, str) or provider not in PROVIDERS:
+                raise ValueError(f"default_provider must be one of: {', '.join(sorted(PROVIDERS))}")
+        for key in ("skills", "mcp_servers"):
+            if key in settings and (not isinstance(settings[key], list) or
+                                    any(not isinstance(item, str) or not item.strip()
+                                        for item in settings[key])):
+                raise ValueError(f"{key} must be a list of non-empty IDs")
+        if "permissions" in settings:
+            permissions = settings["permissions"]
+            if not isinstance(permissions, dict) or any(
+                    not isinstance(key, str) or not isinstance(value, str) or value not in PERMISSION_VALUES
+                    for key, value in permissions.items()):
+                raise ValueError("permissions must map capability IDs to allow, ask, or deny")
