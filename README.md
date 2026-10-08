@@ -2,7 +2,7 @@
 
 **Galaxy is a local-first second brain for people and their AI agents.** It stores useful knowledge, remembers decisions and experience, and lets the user inspect, correct, connect, or retract what it has learned.
 
-Current source version: `1.1.5` (Galaxy v1)
+Current source version: `1.1.6` (Galaxy v1)
 
 Current functionality: **local second brain and reliable memory**
 
@@ -21,7 +21,25 @@ Galaxy is a memory layer and workspace around the user. It does not claim that a
 
 ## Quick start
 
-The current Galaxy v1 package is a CLI with a transitional terminal workspace. The planned primary interface is a Next.js web app; it is not implemented yet. Install the current CLI once for your user account to use memory commands and the prototype workspace from any directory.
+The current Galaxy v1 package is a CLI with a transitional terminal workspace. An initial Next.js web workspace now lives in `web/`; it can list projects and save queued tasks, but does not run agents yet. Install the current CLI once for your user account to use memory commands and the prototype workspace from any directory.
+
+### Web workspace preview
+
+The first Next.js workspace is under development. Start the local API from the repository root:
+
+```bash
+python3 galaxy.py serve
+```
+
+In another terminal, start the web client:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`. The web preview reads and saves projects and queued tasks through the local API; it does not run an agent yet. Next.js requires Node.js 20.9 or newer.
 
 ### Linux and macOS
 
