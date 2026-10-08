@@ -56,6 +56,18 @@ def choose_project_directory() -> str | None:
     if result.returncode != 0:
         if sys.platform == "darwin" and "User canceled" in result.stderr:
             return None
+        if sys.platform.startswith("linux") and result.returncode == 1:
+            diagnostic = result.stderr.lower()
+            display_errors = (
+                "cannot open display",
+                "could not connect to display",
+                "failed to connect to display",
+                "unable to open display",
+                "failed",
+                "error",
+            )
+            if not any(marker in diagnostic for marker in display_errors):
+                return None
         if not result.stderr.strip():
             return None
         raise RuntimeError("Системный диалог выбора папки завершился с ошибкой.")
