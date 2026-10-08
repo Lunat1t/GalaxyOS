@@ -2,7 +2,7 @@
 
 **Galaxy is a local-first second brain for people and their AI agents.** It stores useful knowledge, remembers decisions and experience, and lets the user inspect, correct, connect, or retract what it has learned.
 
-Current source version: `1.1.7` (Galaxy v1)
+Current source version: `1.1.8` (Galaxy v1)
 
 Current functionality: **local second brain and reliable memory**
 
@@ -25,21 +25,23 @@ The current Galaxy v1 package is a CLI with a transitional terminal workspace. A
 
 ### Web workspace preview
 
-The first Next.js workspace is under development. Start the local API from the repository root:
+The first Next.js workspace is under development. Install its dependencies once, then start the API and web client together:
+
+```bash
+cd web
+npm install
+npm run dev:galaxy
+```
+
+Open `http://127.0.0.1:3000`. Press `Ctrl+C` to stop both services. The launcher binds the web client and API to localhost; use `GALAXY_API_PORT` or `PORT` to choose other local ports.
+
+To start the two processes separately instead, run the API from the repository root:
 
 ```bash
 python3 galaxy.py serve
 ```
 
-In another terminal, start the web client:
-
-```bash
-cd web
-npm install
-npm run dev
-```
-
-Open `http://localhost:3000`. The web preview reads and saves projects and queued tasks through the local API; it does not run an agent yet. Next.js requires Node.js 20.9 or newer.
+Then, in another terminal, run `cd web && npm run dev`. The web preview reads and saves projects and queued tasks through the local API; it does not run an agent yet. Next.js requires Node.js 20.9 or newer.
 
 ### Linux and macOS
 

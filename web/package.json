@@ -1,9 +1,10 @@
 {
   "name": "galaxy-code-web",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:galaxy": "node scripts/dev.mjs",
     "build": "next build",
     "start": "next start"
   },
