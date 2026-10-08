@@ -253,6 +253,11 @@ body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 .ask-brand i, .ask-glyph { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 9px; background: var(--green); color: #192112; font-style: normal; font-weight: 800; }
 .ask-device { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; }
 .ask-device b { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px #b7f36b70; }
+.ask-topline-actions { display: flex; align-items: center; gap: 14px; }
+.ask-account { min-height: 29px; padding: 0 10px; border: 1px solid #363d37; border-radius: 7px; background: #171a18; color: #bdc5bd; font-size: 10px; cursor: pointer; }
+.ask-account:hover:not(:disabled) { border-color: #657751; color: var(--green); }
+.ask-account:disabled { opacity: .7; cursor: default; }
+.ask-account.is-connected { border-color: #35422d; color: #a9c68a; }
 .ask-content { width: min(100%, 760px); flex: 1; min-height: 250px; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; }
 .ask-welcome { text-align: center; margin-top: -34px; }
 .ask-orbit { width: 48px; height: 48px; margin: 0 auto 20px; display: grid; place-items: center; border: 1px solid #394532; border-radius: 16px; color: var(--green); background: #1a2118; font-size: 23px; box-shadow: 0 12px 50px #b7f36b0b; }
@@ -296,6 +301,8 @@ body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
   .ask-topline { height: 58px; }
   .ask-device { font-size: 0; }
   .ask-device b { width: 7px; height: 7px; }
+  .ask-topline-actions { gap: 7px; }
+  .ask-account { min-height: 27px; padding: 0 7px; font-size: 9px; }
   .ask-composer-area { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   .ask-composer textarea { min-height: 74px; font-size: 13px; }
   .ask-composer-toolbar { align-items: flex-end; }

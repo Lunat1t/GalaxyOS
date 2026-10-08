@@ -51,6 +51,8 @@ export default function Workspace() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [accountState, setAccountState] = useState("checking");
+  const [connectingAccount, setConnectingAccount] = useState(false);
 
   const activeProject = useMemo(() => projects.find((item) => item.id === activeId) || null, [projects, activeId]);
   const latestTask = tasks[0] || null;
@@ -80,6 +82,40 @@ export default function Workspace() {
   useEffect(() => {
     loadProjects().catch((cause) => setError(cause.message)).finally(() => setLoading(false));
   }, [loadProjects]);
+
+  useEffect(() => {
+    let stopped = false;
+    requestJson("/api/v1/auth/codex")
+      .then((payload) => {
+        if (!stopped) {
+          const state = payload.account?.state || "unavailable";
+          setAccountState(state);
+          setConnectingAccount(state === "connecting");
+        }
+      })
+      .catch(() => { if (!stopped) { setAccountState("unavailable"); setConnectingAccount(false); } });
+    return () => { stopped = true; };
+  }, []);
+
+  useEffect(() => {
+    if (accountState !== "connecting") return undefined;
+    let stopped = false;
+    let timer;
+    async function refreshAccount() {
+      try {
+        const payload = await requestJson("/api/v1/auth/codex");
+        if (stopped) return;
+        const state = payload.account?.state || "unavailable";
+        setAccountState(state);
+        setConnectingAccount(state === "connecting");
+      } catch {
+        if (!stopped) { setAccountState("unavailable"); setConnectingAccount(false); }
+      }
+    }
+    refreshAccount();
+    timer = window.setInterval(refreshAccount, 1500);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [accountState]);
 
   useEffect(() => {
     if (!loading) loadTasks(activeId).catch((cause) => setError(cause.message));
@@ -168,11 +204,24 @@ export default function Workspace() {
     } catch (cause) { setError(cause.message); }
   }
 
+  async function connectCodex() {
+    setConnectingAccount(true);
+    setError("");
+    try {
+      const payload = await requestJson("/api/v1/auth/codex/login", { method: "POST", body: "{}" });
+      setAccountState(payload.account?.state || "connecting");
+      setConnectingAccount(payload.account?.state !== "connected");
+    } catch (cause) {
+      setError(cause.message);
+      setConnectingAccount(false);
+    }
+  }
+
   const statusText = run?.status === "running" ? "Codex работает" : run?.status === "completed" ? "Готово" : run?.status === "failed" ? "Запуск завершился с ошибкой" : run?.status === "cancelled" ? "Остановлено" : "Ответ появится здесь";
 
   return (
     <main className="ask-screen">
-      <div className="ask-topline"><span className="ask-brand"><i>G</i> Galaxy</span><span className="ask-device"><b /> Локально на устройстве</span></div>
+      <div className="ask-topline"><span className="ask-brand"><i>G</i> Galaxy</span><div className="ask-topline-actions"><span className="ask-device"><b /> Локально на устройстве</span><button className={`ask-account ${accountState === "connected" ? "is-connected" : ""}`} type="button" onClick={connectCodex} disabled={connectingAccount || accountState === "unavailable"} title="Вход через браузер; секреты остаются в Codex CLI">{accountState === "connected" ? "Codex подключён" : accountState === "connecting" ? "Войдите в браузере…" : accountState === "unavailable" ? "Codex не найден" : "Подключить Codex"}</button></div></div>
 
       <section className={`ask-content ${latestTask ? "has-conversation" : ""}`}>
         {loading ? (

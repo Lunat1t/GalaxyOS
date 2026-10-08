@@ -14,6 +14,7 @@ import sys
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from galaxy_core.projects import ProjectRegistry
+from galaxy_core.runs.codex_auth import CodexLogin
 from galaxy_core.runs.manager import RunManager
 
 MAX_BODY_BYTES = 64 * 1024
@@ -120,6 +121,7 @@ class GalaxyLocalApi:
             raise ValueError("port must be between 1 and 65535")
         self.registry = registry or ProjectRegistry()
         self.runs = RunManager(self.registry)
+        self.codex_login = CodexLogin(self.runs.provider.executable)
         self.host = host
         self.port = port
         self.token = ""
@@ -196,6 +198,11 @@ class GalaxyLocalApi:
                 registry = api.registry
                 if path == "/api/v1/health" and method == "GET":
                     return 200, {"status": "ok"}
+                if path == "/api/v1/auth/codex" and method == "GET":
+                    return 200, {"account": api.codex_login.status()}
+                if path == "/api/v1/auth/codex/login" and method == "POST":
+                    self._body()
+                    return 202, {"account": api.codex_login.login()}
                 if path == "/api/v1/projects/choose" and method == "POST":
                     self._body()
                     return 200, {"path": choose_project_directory()}
