@@ -107,6 +107,19 @@ def _normalize_event(raw: object) -> ProviderEvent | None:
     return None
 
 
+def is_git_repository(workspace: Path) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(workspace), "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
 def _nonnegative_int(value: object) -> int | None:
     return value if isinstance(value, int) and value >= 0 else None
 
@@ -128,21 +141,12 @@ class CodexRunProvider:
             raise ValueError("Рабочая папка не найдена.")
         if not request.prompt.strip():
             raise ValueError("Запрос агента не должен быть пустым.")
-        try:
-            repository = subprocess.run(
-                ["git", "-C", str(workspace), "rev-parse", "--is-inside-work-tree"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        except OSError as exc:
-            raise RuntimeError("Git не найден; запуск в отдельной рабочей копии недоступен.") from exc
-        if repository.returncode != 0 or repository.stdout.strip() != "true":
-            raise ValueError("Для отдельного запуска Codex нужен Git-проект.")
         executable = self.executable
         if not executable:
             raise RuntimeError("Codex CLI не установлен или не найден.")
-        command = [executable, "exec", "--json", "--ephemeral", "--worktree", "--sandbox", "workspace-write", "--cd", str(workspace)]
+        command = [executable, "exec", "--json", "--ephemeral"]
+        command += ["--worktree"] if is_git_repository(workspace) else ["--skip-git-repo-check"]
+        command += ["--sandbox", "workspace-write", "--cd", str(workspace)]
         if request.model:
             command += ["--model", request.model]
         command.append(request.prompt)

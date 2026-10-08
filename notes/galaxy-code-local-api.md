@@ -1,6 +1,6 @@
 # Локальный API Galaxy Code
 
-**Контракт:** v1.2.4. Операции проектов, задач и Run реализованы в `galaxy_core/local_api.py`; данные Run хранятся отдельно в `runs.sqlite3`.
+**Контракт:** v1.2.5. Операции проектов, задач и Run реализованы в `galaxy_core/local_api.py`; данные Run хранятся отдельно в `runs.sqlite3`.
 
 ## Зачем нужен этот слой
 
@@ -46,7 +46,7 @@ Next.js отвечает за веб-интерфейс. Python-ядро Galaxy 
 | `GET /api/v1/projects/{project_id}/tasks?limit=20` | Список задач проекта |
 | `POST /api/v1/projects/{project_id}/tasks` | Сохранить запрос в очереди; тело `{ "request": "..." }` |
 | `GET /api/v1/tasks/{task_id}` | Прочитать задачу и её статус |
-| `POST /api/v1/projects/{project_id}/tasks/{task_id}/run` | Запустить задачу через Codex CLI в отдельной Git worktree |
+| `POST /api/v1/projects/{project_id}/tasks/{task_id}/run` | Запустить Codex в отдельной Git worktree или копии папки без Git |
 | `GET /api/v1/runs/{run_id}` | Прочитать статус Run |
 | `GET /api/v1/runs/{run_id}/events?after=0` | Прочитать журнал событий после указанного номера |
 | `POST /api/v1/runs/{run_id}/cancel` | Остановить активный процесс Codex |

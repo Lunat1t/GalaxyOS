@@ -79,6 +79,20 @@ class CodexRunProviderTests(unittest.TestCase):
         self.assertEqual(errors[0].message, "Authentication expired")
         self.assertEqual(errors[0].error_code, "provider_failed")
 
+    def test_non_git_project_runs_without_worktree_flag(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            executable = root / "fake-codex"
+            executable.write_text(
+                f"#!{sys.executable}\nimport sys\n"
+                "assert '--skip-git-repo-check' in sys.argv and '--worktree' not in sys.argv\n"
+                "print('{\"type\":\"turn.completed\",\"usage\":{}}')\n",
+                encoding="utf-8",
+            )
+            executable.chmod(0o700)
+            run = CodexRunProvider(str(executable)).start(RunRequest("task", root))
+            self.assertEqual([event.kind for event in run.events()], ["result", "completed"])
+
     def test_rejects_empty_prompt_and_missing_workspace(self):
         provider = CodexRunProvider(sys.executable)
         with tempfile.TemporaryDirectory() as directory:
@@ -176,6 +190,51 @@ class CodexRunProviderTests(unittest.TestCase):
             self.assertEqual(failure["event_type"], "run.failed")
             self.assertIn("Authentication expired", failure["payload"]["message"])
             self.assertNotIn("sk-123456789012345678901234", failure["payload"]["message"])
+
+    def test_non_git_project_uses_an_isolated_local_copy(self):
+        class FakeRun:
+            def events(self):
+                yield ProviderEvent("message", message="Готово")
+                yield ProviderEvent("completed")
+
+            def cancel(self):
+                return None
+
+        class FakeProvider:
+            workspace = None
+
+            def available(self):
+                return True
+
+            def start(self, request):
+                self.workspace = request.workspace
+                (request.workspace / "created.txt").write_text("temporary result", encoding="utf-8")
+                return FakeRun()
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project_path = root / "plain-folder"
+            project_path.mkdir()
+            (project_path / "README.md").write_text("source", encoding="utf-8")
+            (project_path / ".env").write_text("TOKEN=private", encoding="utf-8")
+            (project_path / "node_modules").mkdir()
+            (project_path / "node_modules" / "package.js").write_text("large", encoding="utf-8")
+            registry = ProjectRegistry(root / "data")
+            project = registry.add(project_path)
+            task = registry.create_task(project.id, "Измени локальный проект")
+            provider = FakeProvider()
+            manager = RunManager(registry, provider)
+            run = manager.start(project.id, task.id)
+            deadline = time.monotonic() + 3
+            while manager.get(run["id"])["status"] == "running" and time.monotonic() < deadline:
+                time.sleep(0.01)
+
+            self.assertEqual(manager.get(run["id"])["status"], "completed")
+            self.assertNotEqual(provider.workspace, project_path)
+            self.assertTrue((provider.workspace / "created.txt").exists())
+            self.assertFalse((project_path / "created.txt").exists())
+            self.assertFalse((provider.workspace / ".env").exists())
+            self.assertFalse((provider.workspace / "node_modules").exists())
 
 
 if __name__ == "__main__":

@@ -170,6 +170,14 @@ export default function Workspace() {
       setTasks((current) => [payload.task, ...current]);
       setSelectedTaskId(payload.task.id);
       setRequest("");
+      if (selectedProvider === "codex") {
+        const runPayload = await requestJson(
+          `/api/v1/projects/${encodeURIComponent(activeProject.id)}/tasks/${encodeURIComponent(payload.task.id)}/run`,
+          { method: "POST", body: "{}" },
+        );
+        setActiveRunId(runPayload.run.id);
+        await loadTasks(activeProject.id);
+      }
     } catch (cause) {
       setError(cause.message);
     } finally {
@@ -273,7 +281,7 @@ export default function Workspace() {
 
         <div className="sidebar-bottom">
           <span className="status-dot" /> Локальный режим
-          <span className="version-label">v1.2.4 · PREVIEW</span>
+          <span className="version-label">v1.2.5 · PREVIEW</span>
         </div>
       </aside>
 
@@ -362,7 +370,7 @@ export default function Workspace() {
                       <div className="conversation-empty">
                         <div className="sparkle">✳</div>
                         <h2>Что будем делать?</h2>
-                        <p>Опишите задачу для проекта. Сейчас запрос сохранится в очереди; запуск агента подключим следующим этапом.</p>
+                        <p>Опишите задачу для Codex. Galaxy сохранит её и сразу начнёт выполнение.</p>
                       </div>
                     )}
                       {runEvents.filter((event) => ["provider.message", "run.failed"].includes(event.event_type)).map((event) => (
@@ -371,7 +379,7 @@ export default function Workspace() {
                       {runEvents.filter((event) => event.event_type === "provider.result").map((event) => (
                         <div className="queued-notice" key={event.sequence}><span>↗</span><div><strong>Результат и расход</strong><p>{event.payload.input_tokens ?? "—"} входных и {event.payload.output_tokens ?? "—"} выходных токенов</p></div></div>
                       ))}
-                      <div className="queued-notice"><span className="status-dot" /><div><strong>{run ? `Запуск ${run.status}` : selectedTask ? "Задача сохранена" : "Агент готов"}</strong><p>{run ? "Ход работы и результат сохраняются в журнале задачи." : selectedTask ? "Запустите задачу, чтобы Codex выполнил её в отдельной рабочей копии." : "Создайте задачу для выбранного проекта."}</p></div></div>
+                      <div className="queued-notice"><span className="status-dot" /><div><strong>{run ? `Запуск ${run.status}` : selectedTask ? "Задача сохранена" : "Агент готов"}</strong><p>{run ? "Ход работы и результат сохраняются в журнале задачи." : selectedTask ? "Новый запрос запускается автоматически. Эту задачу можно запустить ещё раз кнопкой ниже." : "Создайте задачу для выбранного проекта."}</p></div></div>
                   </div>
 
                   <form className="composer" onSubmit={addTask}>
@@ -382,7 +390,17 @@ export default function Workspace() {
                       aria-label="Новая задача"
                       rows={3}
                     />
-                    <div className="composer-footer"><span>↵ Запрос сохранится в очереди</span><div>{run?.status === "running" ? <button className="button button-secondary" type="button" onClick={cancelRun} disabled={busy}>Остановить</button> : selectedTask ? <button className="button button-primary" type="button" onClick={executeTask} disabled={busy || selectedTask.status === "running" || selectedProvider !== "codex"}>{selectedProvider === "codex" ? "Запустить Codex" : "Сначала выберите Codex"}</button> : null}<button className="button button-primary send-button" type="submit" disabled={busy || !request.trim()} aria-label="Сохранить задачу">Сохранить <span>↑</span></button></div></div>
+                    <div className="composer-footer">
+                      <span>{request.trim() ? (selectedProvider === "codex" ? "Отправка сразу запустит Codex" : "Сейчас подключён только Codex") : "Введите запрос для Codex"}</span>
+                      <div>
+                        {!request.trim() && (run?.status === "running"
+                          ? <button className="button button-secondary" type="button" onClick={cancelRun} disabled={busy}>Остановить</button>
+                          : selectedTask && <button className="button button-secondary" type="button" onClick={executeTask} disabled={busy || selectedTask.status === "running" || selectedProvider !== "codex"}>Повторить в Codex</button>)}
+                        <button className="button button-primary send-button" type="submit" disabled={busy || !request.trim()} aria-label="Отправить запрос">
+                          {selectedProvider === "codex" ? "Отправить" : "Сохранить в очередь"} <span>↑</span>
+                        </button>
+                      </div>
+                    </div>
                   </form>
                 </div>
               </div>

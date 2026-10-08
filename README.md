@@ -2,7 +2,7 @@
 
 **Galaxy is a local-first second brain for people and their AI agents.** It stores useful knowledge, remembers decisions and experience, and lets the user inspect, correct, connect, or retract what it has learned.
 
-Current source version: `1.2.4` (Galaxy v1)
+Current source version: `1.2.5` (Galaxy v1)
 
 Current functionality: **local second brain and reliable memory**
 
@@ -21,7 +21,7 @@ Galaxy is a memory layer and workspace around the user. It does not claim that a
 
 ## Quick start
 
-The current Galaxy v1 package is a CLI with a transitional terminal workspace. The Next.js web workspace in `web/` can list projects, save tasks, and start Codex runs in a separate Git worktree. Run events are saved locally. Verification, diff review, and user approval are still being built. Install the current CLI once for your user account to use memory commands and the web workspace from any directory.
+The current Galaxy v1 package is a CLI with a transitional terminal workspace. The Next.js web workspace in `web/` can list projects, save tasks, and automatically start Codex runs in an isolated Git worktree or a separate copy of a local folder. Run events are saved locally. Verification, diff review, and user approval are still being built. Install the current CLI once for your user account to use memory commands and the web workspace from any directory.
 
 ### Web workspace preview
 
@@ -43,7 +43,7 @@ To start the two processes separately instead, run the API from the repository r
 python3 galaxy.py serve
 ```
 
-Then, in another terminal, run `cd web && npm run dev`. The workspace can start Codex tasks in a separate Git worktree and show the saved run log. Verification, diff review, and approval are still in development. Next.js requires Node.js 20.9 or newer.
+Then, in another terminal, run `cd web && npm run dev`. The workspace can start Codex tasks in an isolated Git worktree or a separate copy of a local folder and show the saved run log. Verification, diff review, and approval are still in development. Next.js requires Node.js 20.9 or newer.
 
 ### Linux and macOS
 

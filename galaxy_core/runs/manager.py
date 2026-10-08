@@ -6,12 +6,13 @@ from contextlib import contextmanager
 import json
 from pathlib import Path
 import re
+import shutil
 import sqlite3
 import threading
 import uuid
 
 from galaxy_core.projects import ProjectRegistry
-from galaxy_core.runs.codex_cli import CodexRunProvider, ProviderEvent, RunRequest
+from galaxy_core.runs.codex_cli import CodexRunProvider, ProviderEvent, RunRequest, is_git_repository
 
 
 def _now() -> str:
@@ -37,6 +38,21 @@ def _redact_payload(value):
     if isinstance(value, list):
         return [_redact_payload(item) for item in value]
     return value
+
+
+_OMIT_LOCAL_COPY = {".git", "node_modules", ".venv", "venv", "__pycache__", ".next", ".aws", ".ssh"}
+_OMIT_SECRET_FILES = {"credentials.json", "secrets.json"}
+
+
+def _local_copy_ignores(directory: str, names: list[str]) -> set[str]:
+    ignored = set()
+    for name in names:
+        path = Path(directory) / name
+        lowered = name.lower()
+        if (path.is_symlink() or lowered in _OMIT_LOCAL_COPY or lowered in _OMIT_SECRET_FILES
+                or lowered.startswith(".env") or lowered.endswith((".pem", ".key"))):
+            ignored.add(name)
+    return ignored
 
 
 class RunManager:
@@ -118,7 +134,12 @@ class RunManager:
             if not self.provider.available():
                 raise RuntimeError("Codex CLI не установлен или не найден.")
             self._append(run_id, "provider.started", {"provider": "codex"})
-            process = self.provider.start(RunRequest(prompt=prompt, workspace=Path(project_path)))
+            workspace = Path(project_path)
+            if not is_git_repository(workspace):
+                self._append(run_id, "workspace.preparing", {"mode": "local_copy"})
+                workspace = self._make_local_copy(workspace, run_id)
+                self._append(run_id, "workspace.ready", {"mode": "local_copy"})
+            process = self.provider.start(RunRequest(prompt=prompt, workspace=workspace))
             with self._lock:
                 self._active[run_id] = process
                 cancel_now = run_id in self._cancel_requested
@@ -149,6 +170,19 @@ class RunManager:
             with self._lock:
                 self._active.pop(run_id, None)
                 self._cancel_requested.discard(run_id)
+
+    def _make_local_copy(self, source: Path, run_id: str) -> Path:
+        source = source.resolve(strict=True)
+        destination = (self.registry.data_dir / "run_workspaces" / run_id).resolve()
+        if destination.is_relative_to(source):
+            raise ValueError("Папка данных Galaxy находится внутри проекта; локальную копию создать нельзя.")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copytree(source, destination, ignore=_local_copy_ignores, symlinks=True)
+        except OSError as exc:
+            shutil.rmtree(destination, ignore_errors=True)
+            raise RuntimeError("Не удалось подготовить отдельную локальную копию проекта.") from exc
+        return destination
 
     def _record_provider_event(self, run_id: str, event: ProviderEvent) -> None:
         if event.kind == "message":
