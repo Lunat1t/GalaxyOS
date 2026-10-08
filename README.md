@@ -2,7 +2,7 @@
 
 **Galaxy is a local-first second brain for people and their AI agents.** It stores useful knowledge, remembers decisions and experience, and lets the user inspect, correct, connect, or retract what it has learned.
 
-Current source version: `1.0.14` (Galaxy v1)
+Current source version: `1.1.5` (Galaxy v1)
 
 Current functionality: **local second brain and reliable memory**
 
@@ -57,6 +57,14 @@ galaxy project tasks
 ```
 
 The project registry is stored in the user's application data directory. `GALAXY_HOME` can override that location. Run `galaxy` with no arguments to open the project workspace. Tasks are saved as queued requests; the agent runner is still being built. Project settings accept provider, agent/model IDs, Skill/MCP IDs, and `allow`/`ask`/`deny` permission choices; there is no field for credentials. These are saved preferences, not active permissions yet.
+
+For the local API prototype used by the future web client, run:
+
+```bash
+galaxy serve
+```
+
+It listens only on `127.0.0.1:8765`. The service prints the location of a temporary server token for the future Next.js server; do not expose that token in browser code. Stop the service with `Ctrl+C`.
 
 Add and search a memory:
 

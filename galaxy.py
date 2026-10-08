@@ -966,6 +966,8 @@ def parser() -> argparse.ArgumentParser:
 
     sub.add_parser("models", help="show configured model routes")
     sub.add_parser("doctor", help="check local runtime dependencies")
+    q = sub.add_parser("serve", help="run the local API for the Galaxy web client")
+    q.add_argument("--port", type=int, default=8765)
     return p
 
 
@@ -989,7 +991,7 @@ def main() -> int:
             "dispatch", "ask", "logs",
             "guardrail", "decide", "route", "decision-stats", "vault",
             "experience-record", "experience-search", "experience-retract", "rule-suggest", "rule-eval", "rule-show", "rule-promote", "rule-disable", "decision-classify", "brain-state", "brain-reconcile",
-            "project",
+            "project", "serve",
         }
         if sys.argv[1] not in known_cmds:
             raw_query = sys.argv[1]
@@ -1000,6 +1002,10 @@ def main() -> int:
     try:
         if args.command is None:
             return run_tui()
+        if args.command == "serve":
+            from galaxy_core.local_api import serve_local_api
+            serve_local_api(args.port)
+            return 0
         if args.command == "project":
             projects = ProjectRegistry()
             if args.project_action == "add":

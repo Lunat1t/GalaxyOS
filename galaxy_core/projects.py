@@ -243,6 +243,13 @@ class ProjectRegistry:
             """, (project_id, limit)).fetchall()
             return [ProjectTask(**dict(row)) for row in rows]
 
+    def get_task(self, task_id: str) -> ProjectTask:
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM project_tasks WHERE id=?", (task_id,)).fetchone()
+            if row is None:
+                raise KeyError(task_id)
+            return ProjectTask(**dict(row))
+
     @staticmethod
     def _validate_settings(settings: dict) -> None:
         if not isinstance(settings, dict):
