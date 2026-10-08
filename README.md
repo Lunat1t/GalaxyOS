@@ -2,7 +2,7 @@
 
 **Galaxy is a local-first second brain for people and their AI agents.** It stores useful knowledge, remembers decisions and experience, and lets the user inspect, correct, connect, or retract what it has learned.
 
-Current source version: `1.0.9` (Galaxy v1)
+Current source version: `1.0.10` (Galaxy v1)
 
 Current functionality: **local second brain and reliable memory**
 
@@ -21,10 +21,27 @@ Galaxy is a memory layer and workspace around the user. It does not claim that a
 
 ## Quick start
 
+Install Galaxy once for your user account. Then the `galaxy` command and workspace are available from any directory.
+
+### Linux and macOS
+
 ```bash
-python -m pip install -e .
-python galaxy.py --help
+python3 -m pip install --user .
+galaxy
 ```
+
+For development from a checkout, use `python3 -m pip install -e .` instead. If your Python installation does not support user installs, create a virtual environment and add its `bin` directory to `PATH`.
+
+### Windows PowerShell
+
+```powershell
+py -m pip install --user .
+galaxy
+```
+
+Windows installs the terminal support package automatically. If the command is not found after installation, add Python's user `Scripts` directory to `PATH`, or run `py -m galaxy` from the checkout.
+
+To see command help, run `galaxy --help`.
 
 Save, open, and list projects from any directory:
 

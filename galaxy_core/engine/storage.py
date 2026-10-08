@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 
-VERSION = '1.0.9'
+VERSION = '1.0.10'
 
 def atomic_json(path, value):
     path = Path(path)

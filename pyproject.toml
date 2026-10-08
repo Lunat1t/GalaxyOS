@@ -4,11 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "galaxy-second-brain"
-version = "1.0.9"
+version = "1.0.10"
 description = "Local-first second brain and memory system for people and AI agents"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "windows-curses>=2.4.2; sys_platform == 'win32'",
+]
 
 [project.scripts]
 galaxy = "galaxy:main"
