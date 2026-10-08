@@ -53,8 +53,8 @@ def _draw(window, curses, registry: ProjectRegistry, selected: int, status: str,
     selected = max(0, min(selected, len(projects) - 1)) if projects else 0
     split = max(22, min(width // 3, 34))
     window.addnstr(0, 0, "GALAXY CODE  /  WORKSPACE", width - 1, curses.A_BOLD)
-    window.addnstr(1, 0, "Проект: " + (registry.current().name if registry.current() else "не выбран"), split - 2)
-    window.addnstr(2, 0, "Недавние проекты", split - 2, curses.A_BOLD)
+    window.addnstr(1, 0, "Текущий: " + (registry.current().name if registry.current() else "не выбран"), split - 2)
+    window.addnstr(2, 0, "Проекты", split - 2, curses.A_BOLD)
     for index, project in enumerate(projects[:max(0, height - 7)]):
         marker = ">" if index == selected else " "
         active = " *" if project.is_active else ""
@@ -98,26 +98,29 @@ def _draw(window, curses, registry: ProjectRegistry, selected: int, status: str,
                 lines = ["Настройки пока не заданы."]
         else:
             lines = [f"Путь: {project.path}", f"Git: {_branch(project.path)}",
-                     "Запросы ждут подключения агента."]
+                     f"Исполнитель: {settings.get('default_agent_id', 'агент не выбран')}",
+                     "Нажмите T, чтобы записать новый запрос.",
+                     "Запрос сохранится в очереди проекта; запуск агента добавим позже."]
         for index, line in enumerate(lines[:max(0, height - 8)]):
             window.addnstr(4 + index, split + 2, line, width - split - 3)
         if view == "overview":
-            tasks = registry.list_tasks(project.id, limit=max(1, min(8, height - 13)))
-            task_y = 8
-            window.addnstr(task_y, split + 2, "ЗАДАЧИ", width - split - 3, curses.A_BOLD)
+            tasks = registry.list_tasks(project.id, limit=max(1, min(6, height - 8)))
+            task_y = min(height - 4, 8)
+            window.addnstr(task_y, 0, "ЗАДАЧИ", split - 2, curses.A_BOLD)
             if not tasks:
-                window.addnstr(task_y + 1, split + 2, "Пока задач нет. Нажмите T, чтобы добавить.",
-                               width - split - 3)
+                window.addnstr(task_y + 1, 0, "Пока нет задач", split - 2)
             for index, task in enumerate(tasks):
                 label = f"[{task.status}] {task.request}"
-                window.addnstr(task_y + 1 + index, split + 2, label, width - split - 3)
+                y = task_y + 1 + index
+                if y < height - 3:
+                    window.addnstr(y, 0, label, split - 2)
         if view == "settings":
             settings_command = f"Изменить: galaxy project settings {project.id} --set '{{}}'"
             window.addnstr(height - 4, split + 2, settings_command,
                            width - split - 3, curses.A_DIM)
     else:
         window.addnstr(3, split + 2, "Откройте каталог проекта клавишей O.", width - split - 3)
-    window.addnstr(height - 2, 0, "↑/↓ проект   Enter открыть   O каталог   A добавить   T задача   Tab раздел   Q выход",
+    window.addnstr(height - 2, 0, "↑/↓ проект   Enter открыть выбранный   O каталог   A добавить   T задача   Tab раздел   Q выход",
                    width - 1, curses.A_DIM)
     if status:
         window.addnstr(height - 1, 0, status, width - 1)
