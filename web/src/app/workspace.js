@@ -205,7 +205,7 @@ export default function Workspace() {
 
         <div className="sidebar-bottom">
           <span className="status-dot" /> Локальный режим
-          <span className="version-label">v1.1.8 · PREVIEW</span>
+          <span className="version-label">v1.1.9 · PREVIEW</span>
         </div>
       </aside>
 

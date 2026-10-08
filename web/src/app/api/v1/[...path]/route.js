@@ -45,8 +45,9 @@ function isSameLocalOrigin(request) {
   if (!origin || !host) return false;
   try {
     const originUrl = new URL(origin);
-    const requestUrl = new URL(request.url);
-    return originUrl.origin === requestUrl.origin
+    return originUrl.protocol === "http:"
+      && !originUrl.username
+      && !originUrl.password
       && originUrl.host.toLowerCase() === host.toLowerCase()
       && LOOPBACK_HOSTS.has(originUrl.hostname.toLowerCase());
   } catch {
