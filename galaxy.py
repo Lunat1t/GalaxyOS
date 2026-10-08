@@ -40,6 +40,7 @@ from galaxy_core.engine.planning import (
 from galaxy_core.engine.storage import VERSION, atomic_json
 from galaxy_core.migration import migrate_user_data
 from galaxy_core.projects import ProjectRegistry
+from galaxy_core.tui import run_tui
 from galaxy_core.agents import (
     AgentRegistry, AutomaticTeamBuilder, MoonBudget, MoonResult,
     SubAgentManager, TeamPolicy,
@@ -629,7 +630,7 @@ def _add_interview_args(p: argparse.ArgumentParser) -> None:
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=f"Galaxy {VERSION} local memory and knowledge")
     p.add_argument("--version", action="version", version=VERSION)
-    sub = p.add_subparsers(dest="command", required=True)
+    sub = p.add_subparsers(dest="command")
 
     # project command
     q = sub.add_parser("project", help="open and manage recent local projects")
@@ -986,6 +987,8 @@ def main() -> int:
 
     args = parser().parse_args()
     try:
+        if args.command is None:
+            return run_tui()
         if args.command == "project":
             projects = ProjectRegistry()
             if args.project_action == "add":
