@@ -2,7 +2,7 @@
 
 **Galaxy is a local-first second brain for people and their AI agents.** It stores useful knowledge, remembers decisions and experience, and lets the user inspect, correct, connect, or retract what it has learned.
 
-Current source version: `1.1.6` (Galaxy v1)
+Current source version: `1.1.7` (Galaxy v1)
 
 Current functionality: **local second brain and reliable memory**
 

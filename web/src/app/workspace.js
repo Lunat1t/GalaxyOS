@@ -30,6 +30,8 @@ export default function Workspace() {
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [path, setPath] = useState("");
   const [request, setRequest] = useState("");
+  const [provider, setProvider] = useState("codex");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -42,6 +44,10 @@ export default function Workspace() {
     () => tasks.find((task) => task.id === selectedTaskId) || tasks[0] || null,
     [tasks, selectedTaskId],
   );
+
+  useEffect(() => {
+    setProvider(activeProject?.settings?.default_provider || "codex");
+  }, [activeProject?.id, activeProject?.settings?.default_provider]);
 
   const loadProjects = useCallback(async (preferId) => {
     const payload = await requestJson("/api/v1/projects?limit=20");
@@ -129,6 +135,25 @@ export default function Workspace() {
     }
   }
 
+  async function saveSettings(event) {
+    event.preventDefault();
+    if (!activeProject) return;
+    setBusy(true);
+    setError("");
+    try {
+      await requestJson(`/api/v1/projects/${encodeURIComponent(activeProject.id)}/settings`, {
+        method: "PATCH",
+        body: JSON.stringify({ default_provider: provider }),
+      });
+      await loadProjects(activeProject.id);
+      setSettingsOpen(false);
+    } catch (cause) {
+      setError(cause.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -180,14 +205,29 @@ export default function Workspace() {
 
         <div className="sidebar-bottom">
           <span className="status-dot" /> Локальный режим
-          <span className="version-label">v1.1.6 · PREVIEW</span>
+          <span className="version-label">v1.1.7 · PREVIEW</span>
         </div>
       </aside>
 
       <section className="main-panel">
         <header className="topbar">
           <div className="breadcrumbs"><span>Рабочая область</span><b>/</b><strong>{activeProject?.name || "Выберите проект"}</strong></div>
-          <div className="local-badge"><span className="status-dot" /> Данные на этом устройстве</div>
+          <div className="topbar-actions">
+            <select
+              className="mobile-project-select"
+              aria-label="Выбрать проект"
+              value={activeId || ""}
+              onChange={(event) => event.target.value && chooseProject(event.target.value)}
+              disabled={busy}
+            >
+              {!projects.length && <option value="">Нет проектов</option>}
+              {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+            <button className="settings-button" type="button" onClick={() => setSettingsOpen(true)} disabled={!activeProject} aria-label="Настройки проекта">
+              <span>⚙</span> Настройки
+            </button>
+            <div className="local-badge"><span className="status-dot" /> Данные на этом устройстве</div>
+          </div>
         </header>
 
         <div className="workspace-content">
@@ -282,7 +322,7 @@ export default function Workspace() {
         <div className="inspector-header"><span>СВЕДЕНИЯ</span><button type="button" aria-label="Закрыть панель" disabled>×</button></div>
         {activeProject ? (
           <>
-            <div className="inspector-section"><p className="eyebrow">ИСПОЛНИТЕЛЬ</p><div className="provider-card"><span className="provider-icon">✳</span><div><strong>Codex</strong><small>{activeProject.settings?.default_provider || "Не подключён"}</small></div><span className="offline-tag">OFFLINE</span></div><p className="helper-text">Подключение Codex CLI добавим на следующем этапе.</p></div>
+            <div className="inspector-section"><p className="eyebrow">ИСПОЛНИТЕЛЬ</p><div className="provider-card"><span className="provider-icon">✳</span><div><strong>{({ codex: "Codex", openrouter: "OpenRouter", agy: "Antigravity", "claude-code": "Claude Code" })[activeProject.settings?.default_provider] || "Провайдер"}</strong><small>Сохранённое предпочтение</small></div><span className="offline-tag">NOT CONNECTED</span></div><p className="helper-text">Выбор сохраняется, но агент пока не запускается.</p></div>
             <div className="inspector-divider" />
             <div className="inspector-section"><p className="eyebrow">ВЫБРАННАЯ ЗАДАЧА</p>{selectedTask ? <><h3 className="inspector-task">{selectedTask.request}</h3><div className="meta-row"><span>Статус</span><span className="queued-tag"><i /> В очереди</span></div><div className="meta-row"><span>Создана</span><span>{shortDate(selectedTask.created_at)}</span></div><div className="meta-row"><span>Task ID</span><code>{selectedTask.id.slice(0, 8)}</code></div></> : <p className="helper-text">Выберите задачу или создайте новую.</p>}</div>
             <div className="inspector-divider" />
@@ -290,6 +330,25 @@ export default function Workspace() {
           </>
         ) : <p className="helper-text inspector-empty">Сведения проекта появятся после его выбора.</p>}
       </aside>
+
+      {settingsOpen && activeProject && (
+        <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSettingsOpen(false)}>
+          <section className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+            <div className="dialog-heading"><div><p className="eyebrow">ПРОЕКТ</p><h2 id="settings-title">Настройки</h2></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Закрыть">×</button></div>
+            <form onSubmit={saveSettings}>
+              <label className="field-label" htmlFor="default-provider">Провайдер по умолчанию</label>
+              <select id="default-provider" className="provider-select" value={provider} onChange={(event) => setProvider(event.target.value)}>
+                <option value="codex">Codex</option>
+                <option value="openrouter">OpenRouter</option>
+                <option value="agy">Antigravity CLI</option>
+                <option value="claude-code">Claude Code</option>
+              </select>
+              <p className="dialog-help">Сейчас это только сохранённая настройка. Подключение провайдера, credentials и запуск задач добавим отдельными шагами.</p>
+              <div className="dialog-actions"><button className="button button-secondary" type="button" onClick={() => setSettingsOpen(false)}>Отмена</button><button className="button button-primary" type="submit" disabled={busy}>Сохранить</button></div>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
