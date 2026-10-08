@@ -28,6 +28,9 @@ export default function Workspace() {
   const [activeId, setActiveId] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [activeRunId, setActiveRunId] = useState(null);
+  const [run, setRun] = useState(null);
+  const [runEvents, setRunEvents] = useState([]);
   const [request, setRequest] = useState("");
   const [provider, setProvider] = useState("codex");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -43,6 +46,8 @@ export default function Workspace() {
     () => tasks.find((task) => task.id === selectedTaskId) || tasks[0] || null,
     [tasks, selectedTaskId],
   );
+  const selectedProvider = activeProject?.settings?.default_provider || "codex";
+  const visibleRunId = activeRunId || selectedTask?.latest_run_id || null;
 
   useEffect(() => {
     setProvider(activeProject?.settings?.default_provider || "codex");
@@ -79,6 +84,39 @@ export default function Workspace() {
   useEffect(() => {
     if (!loading) loadTasks(activeId).catch((cause) => setError(cause.message));
   }, [activeId, loading, loadTasks]);
+
+  useEffect(() => {
+    setActiveRunId(null);
+    setRun(null);
+    setRunEvents([]);
+  }, [selectedTaskId]);
+
+  useEffect(() => {
+    if (!visibleRunId) return undefined;
+    let stopped = false;
+    let timer;
+    async function refreshRun() {
+      try {
+        const [runPayload, eventPayload] = await Promise.all([
+          requestJson(`/api/v1/runs/${encodeURIComponent(visibleRunId)}`),
+          requestJson(`/api/v1/runs/${encodeURIComponent(visibleRunId)}/events?after=0`),
+        ]);
+        if (!stopped) {
+          setRun(runPayload.run);
+          setRunEvents(eventPayload.events || []);
+          if (runPayload.run.status !== "running" && timer) window.clearInterval(timer);
+          if (runPayload.run.status !== "running") {
+            loadTasks(activeId).catch((cause) => setError(cause.message));
+          }
+        }
+      } catch (cause) {
+        if (!stopped) setError(cause.message);
+      }
+    }
+    refreshRun();
+    timer = window.setInterval(refreshRun, 1500);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [visibleRunId, activeId, loadTasks]);
 
   async function chooseProject(projectId) {
     setBusy(true);
@@ -132,6 +170,39 @@ export default function Workspace() {
       setTasks((current) => [payload.task, ...current]);
       setSelectedTaskId(payload.task.id);
       setRequest("");
+    } catch (cause) {
+      setError(cause.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function executeTask() {
+    if (!activeProject || !selectedTask) return;
+    setBusy(true);
+    setError("");
+    try {
+      const payload = await requestJson(
+        `/api/v1/projects/${encodeURIComponent(activeProject.id)}/tasks/${encodeURIComponent(selectedTask.id)}/run`,
+        { method: "POST", body: "{}" },
+      );
+      setActiveRunId(payload.run.id);
+      await loadTasks(activeProject.id);
+    } catch (cause) {
+      setError(cause.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelRun() {
+    if (!visibleRunId) return;
+    setBusy(true);
+    setError("");
+    try {
+      await requestJson(`/api/v1/runs/${encodeURIComponent(visibleRunId)}/cancel`, {
+        method: "POST", body: "{}",
+      });
     } catch (cause) {
       setError(cause.message);
     } finally {
@@ -202,7 +273,7 @@ export default function Workspace() {
 
         <div className="sidebar-bottom">
           <span className="status-dot" /> Локальный режим
-          <span className="version-label">v1.2.2 · PREVIEW</span>
+          <span className="version-label">v1.2.3 · PREVIEW</span>
         </div>
       </aside>
 
@@ -265,7 +336,7 @@ export default function Workspace() {
                           className={`task-card ${task.id === selectedTask?.id ? "task-selected" : ""}`}
                           onClick={() => setSelectedTaskId(task.id)}
                         >
-                          <div className="task-card-top"><span className="queued-tag"><i /> В очереди</span><span className="task-date">{shortDate(task.created_at)}</span></div>
+                          <div className="task-card-top"><span className={`queued-tag task-status-${task.status}`}><i /> {{ queued: "В очереди", running: "Выполняется", completed: "Готово", failed: "Ошибка", cancelled: "Отменено" }[task.status] || task.status}</span><span className="task-date">{shortDate(task.created_at)}</span></div>
                           <p>{task.request}</p>
                         </button>
                       ))}
@@ -278,7 +349,7 @@ export default function Workspace() {
                 <div className="conversation-column">
                   <div className="conversation-header">
                     <div><span className="agent-avatar">G</span><div><strong>Рабочая область</strong><small>Новый запрос</small></div></div>
-                    <span className="status-chip">ПОДГОТОВКА</span>
+                    <span className="status-chip">{run?.status === "running" ? "ВЫПОЛНЯЕТСЯ" : run?.status === "completed" ? "ЗАВЕРШЕНО" : run?.status === "failed" ? "ОШИБКА" : run?.status === "cancelled" ? "ОТМЕНЕНО" : "ОЖИДАЕТ ЗАПУСКА"}</span>
                   </div>
 
                   <div className="conversation-body">
@@ -294,7 +365,13 @@ export default function Workspace() {
                         <p>Опишите задачу для проекта. Сейчас запрос сохранится в очереди; запуск агента подключим следующим этапом.</p>
                       </div>
                     )}
-                    <div className="queued-notice"><span className="status-dot" /><div><strong>{selectedTask ? "Задача сохранена" : "Агент ещё не подключён"}</strong><p>{selectedTask ? "Она появится здесь после запуска выполнения." : "Можно подготовить запрос — он будет ждать подключения Codex."}</p></div></div>
+                      {runEvents.filter((event) => ["provider.message", "run.failed"].includes(event.event_type)).map((event) => (
+                        <div className="message-row" key={event.sequence}><div className="agent-avatar">{event.event_type === "provider.message" ? "G" : "!"}</div><div className="message-content"><span className="message-author">{event.event_type === "provider.message" ? "Codex" : "Galaxy"}<time>Событие {event.sequence}</time></span><p>{event.payload.text || event.payload.message || event.payload.code}</p></div></div>
+                      ))}
+                      {runEvents.filter((event) => event.event_type === "provider.result").map((event) => (
+                        <div className="queued-notice" key={event.sequence}><span>↗</span><div><strong>Результат и расход</strong><p>{event.payload.input_tokens ?? "—"} входных и {event.payload.output_tokens ?? "—"} выходных токенов</p></div></div>
+                      ))}
+                      <div className="queued-notice"><span className="status-dot" /><div><strong>{run ? `Запуск ${run.status}` : selectedTask ? "Задача сохранена" : "Агент готов"}</strong><p>{run ? "Ход работы и результат сохраняются в журнале задачи." : selectedTask ? "Запустите задачу, чтобы Codex выполнил её в отдельной рабочей копии." : "Создайте задачу для выбранного проекта."}</p></div></div>
                   </div>
 
                   <form className="composer" onSubmit={addTask}>
@@ -305,7 +382,7 @@ export default function Workspace() {
                       aria-label="Новая задача"
                       rows={3}
                     />
-                    <div className="composer-footer"><span>↵ Запрос сохранится в очереди</span><button className="button button-primary send-button" type="submit" disabled={busy || !request.trim()} aria-label="Сохранить задачу">Сохранить <span>↑</span></button></div>
+                    <div className="composer-footer"><span>↵ Запрос сохранится в очереди</span><div>{run?.status === "running" ? <button className="button button-secondary" type="button" onClick={cancelRun} disabled={busy}>Остановить</button> : selectedTask ? <button className="button button-primary" type="button" onClick={executeTask} disabled={busy || selectedTask.status === "running" || selectedProvider !== "codex"}>{selectedProvider === "codex" ? "Запустить Codex" : "Сначала выберите Codex"}</button> : null}<button className="button button-primary send-button" type="submit" disabled={busy || !request.trim()} aria-label="Сохранить задачу">Сохранить <span>↑</span></button></div></div>
                   </form>
                 </div>
               </div>
@@ -318,9 +395,9 @@ export default function Workspace() {
         <div className="inspector-header"><span>СВЕДЕНИЯ</span><button type="button" aria-label="Закрыть панель" disabled>×</button></div>
         {activeProject ? (
           <>
-            <div className="inspector-section"><p className="eyebrow">ИСПОЛНИТЕЛЬ</p><div className="provider-card"><span className="provider-icon">✳</span><div><strong>{({ codex: "Codex", openrouter: "OpenRouter", agy: "Antigravity", "claude-code": "Claude Code" })[activeProject.settings?.default_provider] || "Провайдер"}</strong><small>Сохранённое предпочтение</small></div><span className="offline-tag">NOT CONNECTED</span></div><p className="helper-text">Выбор сохраняется, но агент пока не запускается.</p></div>
+            <div className="inspector-section"><p className="eyebrow">ИСПОЛНИТЕЛЬ</p><div className="provider-card"><span className="provider-icon">✳</span><div><strong>{({ codex: "Codex", openrouter: "OpenRouter", agy: "Antigravity", "claude-code": "Claude Code" })[selectedProvider] || "Codex"}</strong><small>{selectedProvider === "codex" ? "Запуск в отдельной рабочей копии" : "Провайдер сохранён в настройках"}</small></div><span className="offline-tag">{selectedProvider === "codex" ? "LOCAL" : "LATER"}</span></div><p className="helper-text">{selectedProvider === "codex" ? "Запуск доступен через Codex CLI. Другие провайдеры подключим позже." : "Для запуска задачи выберите Codex в настройках проекта."}</p></div>
             <div className="inspector-divider" />
-            <div className="inspector-section"><p className="eyebrow">ВЫБРАННАЯ ЗАДАЧА</p>{selectedTask ? <><h3 className="inspector-task">{selectedTask.request}</h3><div className="meta-row"><span>Статус</span><span className="queued-tag"><i /> В очереди</span></div><div className="meta-row"><span>Создана</span><span>{shortDate(selectedTask.created_at)}</span></div><div className="meta-row"><span>Task ID</span><code>{selectedTask.id.slice(0, 8)}</code></div></> : <p className="helper-text">Выберите задачу или создайте новую.</p>}</div>
+            <div className="inspector-section"><p className="eyebrow">ВЫБРАННАЯ ЗАДАЧА</p>{selectedTask ? <><h3 className="inspector-task">{selectedTask.request}</h3><div className="meta-row"><span>Статус</span><span className={`queued-tag task-status-${selectedTask.status}`}><i /> {{ queued: "В очереди", running: "Выполняется", completed: "Готово", failed: "Ошибка", cancelled: "Отменено" }[selectedTask.status] || selectedTask.status}</span></div><div className="meta-row"><span>Создана</span><span>{shortDate(selectedTask.created_at)}</span></div><div className="meta-row"><span>Task ID</span><code>{selectedTask.id.slice(0, 8)}</code></div></> : <p className="helper-text">Выберите задачу или создайте новую.</p>}</div>
             <div className="inspector-divider" />
             <div className="inspector-section"><p className="eyebrow">ПРОВЕРКИ И DIFF</p><div className="pending-block"><span>⌁</span><p>Появятся после подключения выполнения задачи.</p></div></div>
           </>
@@ -339,7 +416,7 @@ export default function Workspace() {
                 <option value="agy">Antigravity CLI</option>
                 <option value="claude-code">Claude Code</option>
               </select>
-              <p className="dialog-help">Сейчас это только сохранённая настройка. Подключение провайдера, credentials и запуск задач добавим отдельными шагами.</p>
+              <p className="dialog-help">Запуск задач сейчас поддерживает Codex CLI. Остальные провайдеры подключим отдельными адаптерами.</p>
               <div className="dialog-actions"><button className="button button-secondary" type="button" onClick={() => setSettingsOpen(false)}>Отмена</button><button className="button button-primary" type="submit" disabled={busy}>Сохранить</button></div>
             </form>
           </section>

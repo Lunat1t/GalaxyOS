@@ -14,6 +14,7 @@ import sys
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from galaxy_core.projects import ProjectRegistry
+from galaxy_core.runs.manager import RunManager
 
 MAX_BODY_BYTES = 64 * 1024
 
@@ -118,6 +119,7 @@ class GalaxyLocalApi:
         if not 1 <= port <= 65535:
             raise ValueError("port must be between 1 and 65535")
         self.registry = registry or ProjectRegistry()
+        self.runs = RunManager(self.registry)
         self.host = host
         self.port = port
         self.token = ""
@@ -215,6 +217,22 @@ class GalaxyLocalApi:
 
                 parts = [unquote(part) for part in path.split("/") if part]
                 if len(parts) >= 3 and parts[:2] == ["api", "v1"]:
+                    if parts[2] == "runs" and len(parts) in {4, 5}:
+                        run_id = parts[3]
+                        if len(parts) == 4 and method == "GET":
+                            return 200, {"run": api.runs.get(run_id)}
+                        if len(parts) == 5 and parts[4] == "events" and method == "GET":
+                            after = int(query.get("after", ["0"])[0])
+                            if after < 0:
+                                raise ValueError("after must be zero or greater")
+                            return 200, {"events": api.runs.events(run_id, after)}
+                        if len(parts) == 5 and parts[4] == "cancel" and method == "POST":
+                            self._body()
+                            return 200, {"run": api.runs.cancel(run_id)}
+                    if (parts[2] == "projects" and len(parts) == 7 and parts[4] == "tasks"
+                            and parts[6] == "run" and method == "POST"):
+                        self._body()
+                        return 202, {"run": api.runs.start(parts[3], parts[5])}
                     if parts[2] == "tasks" and len(parts) == 4 and method == "GET":
                         return 200, {"task": registry.get_task(parts[3]).to_dict()}
                     if parts[2] == "projects" and len(parts) in {4, 5}:
@@ -254,7 +272,8 @@ class GalaxyLocalApi:
                 except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
                     self._error(400, "invalid_request", str(exc))
                 except RuntimeError as exc:
-                    self._error(503, "folder_picker_unavailable", str(exc))
+                    code = "folder_picker_unavailable" if urlsplit(self.path).path == "/api/v1/projects/choose" else "operation_unavailable"
+                    self._error(503, code, str(exc))
                 except OSError:
                     self._error(500, "internal_error", "Local API could not complete the request")
                 except Exception:

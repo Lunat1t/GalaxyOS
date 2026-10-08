@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -57,6 +58,7 @@ class ProjectTask:
     status: str
     created_at: str
     updated_at: str
+    latest_run_id: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -72,12 +74,17 @@ class ProjectRegistry:
         self.path = self.data_dir / "projects.sqlite3"
         self._init_schema()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self):
         db = sqlite3.connect(self.path, timeout=15)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys=ON")
         db.execute("PRAGMA journal_mode=WAL")
-        return db
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     def _init_schema(self) -> None:
         with self._connect() as db:
@@ -100,11 +107,15 @@ class ProjectRegistry:
                     request TEXT NOT NULL,
                     status TEXT NOT NULL DEFAULT 'queued',
                     created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    latest_run_id TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_project_tasks_recent
                     ON project_tasks(project_id, created_at DESC);
             """)
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(project_tasks)")}
+            if "latest_run_id" not in columns:
+                db.execute("ALTER TABLE project_tasks ADD COLUMN latest_run_id TEXT")
 
     @staticmethod
     def _canonical_path(path: str | Path) -> Path:
@@ -227,11 +238,23 @@ class ProjectRegistry:
         with self._connect() as db:
             if not db.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
                 raise KeyError(project_id)
-            db.execute("INSERT INTO project_tasks VALUES(?,?,?,?,?,?)", (
+            db.execute("INSERT INTO project_tasks(id,project_id,request,status,created_at,updated_at) VALUES(?,?,?,?,?,?)", (
                 task.id, task.project_id, task.request, task.status,
                 task.created_at, task.updated_at,
             ))
         return task
+
+    def update_task(self, task_id: str, status: str, run_id: str | None = None) -> ProjectTask:
+        if status not in {"queued", "running", "completed", "failed", "cancelled"}:
+            raise ValueError("unsupported task status")
+        with self._connect() as db:
+            cursor = db.execute(
+                "UPDATE project_tasks SET status=?, updated_at=?, latest_run_id=COALESCE(?,latest_run_id) WHERE id=?",
+                (status, _now(), run_id, task_id),
+            )
+            if not cursor.rowcount:
+                raise KeyError(task_id)
+            return ProjectTask(**dict(db.execute("SELECT * FROM project_tasks WHERE id=?", (task_id,)).fetchone()))
 
     def list_tasks(self, project_id: str, limit: int = 20) -> list[ProjectTask]:
         if not 1 <= limit <= 100:
