@@ -647,6 +647,12 @@ def parser() -> argparse.ArgumentParser:
     project_settings = project_sub.add_parser("settings", help="show or update project settings")
     project_settings.add_argument("target", nargs="?")
     project_settings.add_argument("--set", dest="settings_json", help="JSON object with settings to update")
+    project_tasks = project_sub.add_parser("tasks", help="show a project's saved tasks")
+    project_tasks.add_argument("target", nargs="?")
+    project_tasks.add_argument("--limit", type=int, default=20)
+    project_task_add = project_sub.add_parser("task-add", help="save a task for a project")
+    project_task_add.add_argument("request")
+    project_task_add.add_argument("--project", dest="project_target")
 
     # plan command
     q = sub.add_parser("plan", help="decompose a goal into a validated DAG")
@@ -1016,6 +1022,18 @@ def main() -> int:
                     updates = json.loads(args.settings_json)
                     result = projects.update_settings(result.id, updates)
                 print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
+                return 0
+            if args.project_action in {"tasks", "task-add"}:
+                target = args.project_target if args.project_action == "task-add" else args.target
+                project = projects.current() if target is None else projects.get(target)
+                if project is None:
+                    raise ValueError("No active project. Open a project first.")
+                if args.project_action == "task-add":
+                    result = projects.create_task(project.id, args.request)
+                    print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
+                else:
+                    result = [task.to_dict() for task in projects.list_tasks(project.id, args.limit)]
+                    print(json.dumps(result, ensure_ascii=False, indent=2))
                 return 0
         if args.command in {"interview", "grill"}:
             return interactive_interview(args)

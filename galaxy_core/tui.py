@@ -98,16 +98,26 @@ def _draw(window, curses, registry: ProjectRegistry, selected: int, status: str,
                 lines = ["Настройки пока не заданы."]
         else:
             lines = [f"Путь: {project.path}", f"Git: {_branch(project.path)}",
-                     "Агент и задачи появятся на следующих шагах."]
+                     "Запросы ждут подключения агента."]
         for index, line in enumerate(lines[:max(0, height - 8)]):
             window.addnstr(4 + index, split + 2, line, width - split - 3)
+        if view == "overview":
+            tasks = registry.list_tasks(project.id, limit=max(1, min(8, height - 13)))
+            task_y = 8
+            window.addnstr(task_y, split + 2, "ЗАДАЧИ", width - split - 3, curses.A_BOLD)
+            if not tasks:
+                window.addnstr(task_y + 1, split + 2, "Пока задач нет. Нажмите T, чтобы добавить.",
+                               width - split - 3)
+            for index, task in enumerate(tasks):
+                label = f"[{task.status}] {task.request}"
+                window.addnstr(task_y + 1 + index, split + 2, label, width - split - 3)
         if view == "settings":
             settings_command = f"Изменить: galaxy project settings {project.id} --set '{{}}'"
             window.addnstr(height - 4, split + 2, settings_command,
                            width - split - 3, curses.A_DIM)
     else:
         window.addnstr(3, split + 2, "Откройте каталог проекта клавишей O.", width - split - 3)
-    window.addnstr(height - 2, 0, "↑/↓ проект   Enter открыть   O каталог   A добавить   Tab раздел   Q выход",
+    window.addnstr(height - 2, 0, "↑/↓ проект   Enter открыть   O каталог   A добавить   T задача   Tab раздел   Q выход",
                    width - 1, curses.A_DIM)
     if status:
         window.addnstr(height - 1, 0, status, width - 1)
@@ -135,6 +145,17 @@ def _curses_main(window, curses, registry: ProjectRegistry) -> int:
             view = "overview" if view == "settings" else "settings"
         elif key == "\t":
             view = VIEWS[(VIEWS.index(view) + 1) % len(VIEWS)]
+        elif key in ("t", "T"):
+            projects = registry.list_recent()
+            if projects:
+                request = _prompt(window, curses, "Новая задача: ")
+                if request:
+                    try:
+                        task = registry.create_task(projects[selected].id, request)
+                        status = "Сохранена, ожидает агента: " + task.id[:8]
+                        view = "overview"
+                    except (ValueError, OSError, KeyError) as exc:
+                        status = str(exc)
         elif key in ("o", "O", "a", "A"):
             value = _prompt(window, curses, "Путь к каталогу: ")
             if value:
@@ -164,7 +185,7 @@ def _line_mode(registry: ProjectRegistry) -> int:
         for index, project in enumerate(projects, 1):
             active = " *" if project.is_active else ""
             print(f"{index}. {project.name}{active} — {project.path}")
-        choice = input("[o] открыть путь или ID, [a] добавить, [q] выход: ").strip().lower()
+        choice = input("[o] открыть, [a] добавить, [t] новая задача, [q] выход: ").strip().lower()
         if choice == "q":
             return 0
         if choice in {"o", "a"}:
@@ -176,6 +197,17 @@ def _line_mode(registry: ProjectRegistry) -> int:
                 print(("Открыт: " if choice == "o" else "Добавлен: ") + project.path)
             except (ValueError, OSError) as exc:
                 print(f"Ошибка: {exc}", file=sys.stderr)
+        elif choice == "t":
+            project = registry.current()
+            request = input("Новая задача: ").strip()
+            if project and request:
+                try:
+                    task = registry.create_task(project.id, request)
+                    print(f"Сохранена, ожидает агента: {task.id}")
+                except (ValueError, OSError, KeyError) as exc:
+                    print(f"Ошибка: {exc}", file=sys.stderr)
+            elif not project:
+                print("Сначала откройте проект.", file=sys.stderr)
         elif choice.isdigit() and 1 <= int(choice) <= len(projects):
             project = registry.open(projects[int(choice) - 1].id)
             print(f"Открыт: {project.path}")

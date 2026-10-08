@@ -2,7 +2,7 @@
 
 **Galaxy is a local-first second brain for people and their AI agents.** It stores useful knowledge, remembers decisions and experience, and lets the user inspect, correct, connect, or retract what it has learned.
 
-Current source version: `1.0.8` (Galaxy v1)
+Current source version: `1.0.9` (Galaxy v1)
 
 Current functionality: **local second brain and reliable memory**
 
@@ -35,9 +35,11 @@ galaxy project list
 galaxy project show
 galaxy project settings
 galaxy project settings --set '{"default_provider":"codex"}'
+galaxy project task-add "Review the project setup"
+galaxy project tasks
 ```
 
-The project registry is stored in the user's application data directory. `GALAXY_HOME` can override that location. Run `galaxy` with no arguments to open the project workspace. Project settings accept provider, agent/model IDs, Skill/MCP IDs, and `allow`/`ask`/`deny` permission choices; there is no field for credentials. They are saved preferences; task execution and permissions enforcement are still being built.
+The project registry is stored in the user's application data directory. `GALAXY_HOME` can override that location. Run `galaxy` with no arguments to open the project workspace. Tasks are saved as queued requests; the agent runner is still being built. Project settings accept provider, agent/model IDs, Skill/MCP IDs, and `allow`/`ask`/`deny` permission choices; there is no field for credentials. These are saved preferences, not active permissions yet.
 
 Add and search a memory:
 

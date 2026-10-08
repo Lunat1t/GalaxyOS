@@ -49,6 +49,19 @@ class Project:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class ProjectTask:
+    id: str
+    project_id: str
+    request: str
+    status: str
+    created_at: str
+    updated_at: str
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
 class ProjectRegistry:
     """Store project locations and recent/active selection in user data."""
 
@@ -81,6 +94,16 @@ class ProjectRegistry:
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS project_tasks (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL REFERENCES projects(id),
+                    request TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'queued',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_project_tasks_recent
+                    ON project_tasks(project_id, created_at DESC);
             """)
 
     @staticmethod
@@ -195,6 +218,30 @@ class ProjectRegistry:
         if not isinstance(updates, dict):
             raise ValueError("settings update must be a JSON object")
         return self.save_settings(project_id, {**current.settings, **updates})
+
+    def create_task(self, project_id: str, request: str) -> ProjectTask:
+        request = request.strip()
+        if not request:
+            raise ValueError("task request cannot be empty")
+        task = ProjectTask(str(uuid.uuid4()), project_id, request, "queued", _now(), _now())
+        with self._connect() as db:
+            if not db.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
+                raise KeyError(project_id)
+            db.execute("INSERT INTO project_tasks VALUES(?,?,?,?,?,?)", (
+                task.id, task.project_id, task.request, task.status,
+                task.created_at, task.updated_at,
+            ))
+        return task
+
+    def list_tasks(self, project_id: str, limit: int = 20) -> list[ProjectTask]:
+        if not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        with self._connect() as db:
+            rows = db.execute("""
+                SELECT * FROM project_tasks WHERE project_id=?
+                ORDER BY created_at DESC LIMIT ?
+            """, (project_id, limit)).fetchall()
+            return [ProjectTask(**dict(row)) for row in rows]
 
     @staticmethod
     def _validate_settings(settings: dict) -> None:
