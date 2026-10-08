@@ -6,6 +6,7 @@
 - [Логическая модель данных Galaxy Code](galaxy-code-data-model.md).
 - [Инвентаризация хранилищ и карта миграции](galaxy-code-migration-map.md).
 - [Первый сценарий и журнал Run](galaxy-code-run-contract.md).
+- [Контракт локального API для Next.js](galaxy-code-local-api.md).
 - [Реестр проектов и команды открытия](../galaxy_core/projects.py).
 - [Короткие отчёты по новым версиям](../CHANGELOG.md).
 - [Решение об удалении контекстного ядра](context-retirement.md): действующие границы разработки.
