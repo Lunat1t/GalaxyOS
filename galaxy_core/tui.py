@@ -7,6 +7,13 @@ import sys
 
 from galaxy_core.projects import ProjectRegistry
 
+VIEWS = ("overview", "project", "agents", "models", "integrations", "permissions", "settings")
+VIEW_TITLES = {
+    "overview": "РАБОЧАЯ ОБЛАСТЬ", "project": "ПРОЕКТ", "agents": "АГЕНТЫ",
+    "models": "МОДЕЛИ", "integrations": "SKILLS / MCP",
+    "permissions": "РАЗРЕШЕНИЯ", "settings": "НАСТРОЙКИ ПРОЕКТА",
+}
+
 
 def _branch(path: str) -> str:
     try:
@@ -59,27 +66,48 @@ def _draw(window, curses, registry: ProjectRegistry, selected: int, status: str,
             window.addch(y, split, curses.ACS_VLINE)
         except curses.error:
             pass
-    heading = "НАСТРОЙКИ ПРОЕКТА" if view == "settings" else "РАБОЧАЯ ОБЛАСТЬ"
-    window.addnstr(1, split + 2, heading, width - split - 3, curses.A_BOLD)
+    window.addnstr(1, split + 2, VIEW_TITLES.get(view, VIEW_TITLES["overview"]),
+                   width - split - 3, curses.A_BOLD)
     project = projects[selected] if projects else registry.current()
     if project:
         window.addnstr(3, split + 2, f"{project.name}  ·  {project.id[:8]}", width - split - 3, curses.A_BOLD)
+        settings = project.settings
+        if view == "project":
+            lines = [f"Путь: {project.path}", f"Git: {_branch(project.path)}",
+                     f"Создан: {project.created_at}",
+                     f"Последнее открытие: {project.last_opened_at or 'ещё не открывали'}"]
+        elif view == "agents":
+            lines = [f"Агент по умолчанию: {settings.get('default_agent_id', 'не выбран')}",
+                     "Постоянные профили подключим следующим шагом."]
+        elif view == "models":
+            lines = [f"Провайдер: {settings.get('default_provider', 'не выбран')}",
+                     f"Профиль модели: {settings.get('model_profile', 'не выбран')}"]
+        elif view == "integrations":
+            lines = ["Skills: " + (", ".join(settings.get("skills", [])) or "не выбраны"),
+                     "MCP: " + (", ".join(settings.get("mcp_servers", [])) or "не настроен"),
+                     "Подключение этих каталогов ещё не реализовано."]
+        elif view == "permissions":
+            permissions = settings.get("permissions", {})
+            lines = [f"{key}: {value}" for key, value in sorted(permissions.items())]
+            if not lines:
+                lines = ["Разрешения не заданы."]
+            lines.append("Эти настройки пока не ограничивают инструменты.")
+        elif view == "settings":
+            lines = json.dumps(settings, ensure_ascii=False, indent=2).splitlines()
+            if not lines:
+                lines = ["Настройки пока не заданы."]
+        else:
+            lines = [f"Путь: {project.path}", f"Git: {_branch(project.path)}",
+                     "Агент и задачи появятся на следующих шагах."]
+        for index, line in enumerate(lines[:max(0, height - 8)]):
+            window.addnstr(4 + index, split + 2, line, width - split - 3)
         if view == "settings":
-            settings = json.dumps(project.settings, ensure_ascii=False, indent=2).splitlines()
-            if not settings:
-                settings = ["Настройки пока не заданы."]
-            for index, line in enumerate(settings[:max(0, height - 8)]):
-                window.addnstr(4 + index, split + 2, line, width - split - 3)
             settings_command = f"Изменить: galaxy project settings {project.id} --set '{{}}'"
             window.addnstr(height - 4, split + 2, settings_command,
                            width - split - 3, curses.A_DIM)
-        else:
-            window.addnstr(4, split + 2, project.path, width - split - 3)
-            window.addnstr(5, split + 2, "Git: " + _branch(project.path), width - split - 3)
-            window.addnstr(7, split + 2, "Агент и задачи появятся на следующих шагах.", width - split - 3)
     else:
         window.addnstr(3, split + 2, "Откройте каталог проекта клавишей O.", width - split - 3)
-    window.addnstr(height - 2, 0, "↑/↓ выбрать   Enter открыть   O каталог   A добавить   S настройки   Q выход",
+    window.addnstr(height - 2, 0, "↑/↓ проект   Enter открыть   O каталог   A добавить   Tab раздел   Q выход",
                    width - 1, curses.A_DIM)
     if status:
         window.addnstr(height - 1, 0, status, width - 1)
@@ -105,6 +133,8 @@ def _curses_main(window, curses, registry: ProjectRegistry) -> int:
             selected = min(max(0, count - 1), selected + 1)
         elif key in ("s", "S"):
             view = "overview" if view == "settings" else "settings"
+        elif key == "\t":
+            view = VIEWS[(VIEWS.index(view) + 1) % len(VIEWS)]
         elif key in ("o", "O", "a", "A"):
             value = _prompt(window, curses, "Путь к каталогу: ")
             if value:
