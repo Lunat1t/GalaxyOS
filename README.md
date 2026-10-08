@@ -2,11 +2,11 @@
 
 **Galaxy is a local-first second brain for people and their AI agents.** It stores useful knowledge, remembers decisions and experience, and lets the user inspect, correct, connect, or retract what it has learned.
 
-Current source version: `1.0.12` (Galaxy v1)
+Current source version: `1.0.13` (Galaxy v1)
 
 Current functionality: **local second brain and reliable memory**
 
-Planned direction: **Galaxy Code**; see [architecture](notes/core-architecture.md) and [change reports](CHANGELOG.md).
+Planned direction: **Galaxy Code web app on Next.js**; the current CLI/TUI is transitional. See [architecture](notes/core-architecture.md) and [change reports](CHANGELOG.md).
 
 ## What Galaxy does
 
@@ -21,7 +21,7 @@ Galaxy is a memory layer and workspace around the user. It does not claim that a
 
 ## Quick start
 
-Install Galaxy once for your user account. Then the `galaxy` command and workspace are available from any directory.
+The current Galaxy v1 package is a CLI with a transitional terminal workspace. The planned primary interface is a Next.js web app; it is not implemented yet. Install the current CLI once for your user account to use memory commands and the prototype workspace from any directory.
 
 ### Linux and macOS
 
