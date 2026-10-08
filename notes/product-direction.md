@@ -1,34 +1,26 @@
-# Galaxy product direction
+# Galaxy Code — направление продукта
 
-## In one sentence
+**Решение владельца от 2026-10-08:** пересобрать Galaxy v1 в Galaxy Code по плану `/home/bah/Downloads/Galaxy_Code_Detailed.md`, раздел 48. Этот документ описывает цель. В версии 1.0.4 исполняемый код остаётся локальной памятью на основе Galaxy v1 1.0.0 и legacy 3.2.1-alpha.19.
 
-Galaxy is a local-first second brain that helps people and their AI agents save, find, connect, and maintain useful knowledge over time.
+## Задача пользователя
 
-## Who it serves
+Открыть проект из любого каталога, описать задачу постоянному агенту, увидеть ход работы и источники, проверить результат и Git diff, затем решить, применять ли изменения. После задачи сохранить полезные решения и опыт так, чтобы их можно было найти, исправить или отозвать позже.
 
-Independent developers, students, and small teams who want a durable place for project knowledge, decisions, personal notes, goals, and lessons learned by their agents.
+## Первый рабочий срез
 
-## The central problem
+Локальный проект, один агент, Codex CLI и TUI по выбранному макету «Рабочая область». Слева — проект, постоянные агенты и задачи; справа — диалог, ход работы, проверки и diff. На узком терминале области доступны последовательно. Сквозной путь: запрос → выполнение в ограниченном рабочем месте → проверки → diff → решение пользователя → сохранение результата. До реализации и проверки этого пути сборку нельзя называть готовым Galaxy Code.
 
-Useful knowledge is scattered across notes, decisions, task outcomes, and conversations. It is difficult to find later, easy to repeat mistakes, and risky to trust when its source or freshness is unclear.
+Codex, OpenRouter, `agy` (Antigravity CLI) и Claude Code — провайдеры целевой первой версии. Qwen предполагается разместить на отдельном сервере позднее. Постоянный агент сохраняет идентичность, профиль и историю задач между запусками; временный Worker существует только для порученной подзадачи. Фоновая самостоятельная работа агента требует отдельного решения о правилах запуска, остановки, уведомлений, лимитов и подтверждений.
 
-## What Galaxy provides
+## Принципы
 
-- Durable memory records with project scope, tags, importance, status, links, and history.
-- Search over managed memories and Markdown notes.
-- An Obsidian-compatible vault with links, backlinks, and a knowledge graph.
-- Goals and agent experience that can be revisited during later planning.
-- User controls to confirm, correct, mark stale, or retract information.
-- Local-first storage and optional agent/model integrations.
+1. **Человек управляет действием.** Запись, push, merge, публикация и доступ к production подчиняются явным разрешениям; решение о применении относится к конкретному diff.
+2. **Результат проверяем.** Сообщение агента, результат команды и решение пользователя хранятся отдельно. Проверка привязана к тому состоянию файлов, которое показано пользователю.
+3. **Память доступна для проверки.** Сохраняются источники, статусы, связи, история исправлений и возможность отзыва. Предположение агента не становится фактом автоматически.
+4. **Данные остаются переносимыми.** Markdown vault остаётся редактируемым источником; его индекс можно восстановить. Существующие записи мигрируют без потери данных и с возможностью отката.
+5. **Контекст ограничен задачей.** Agent Harness получает только нужные правила, файлы, результаты проверок и записи памяти с видимыми источниками. Секреты не включаются в промпт.
+6. **Локальная работа не зависит от облака.** Cloud, SSH/VPS, Pet и расширения следуют после рабочего локального цикла согласно плану.
 
-## Product principles
+## Границы решения
 
-1. **Memory should be inspectable.** Show sources, status, and history.
-2. **A suggestion is not a fact.** Keep inferred and agent-written information reviewable.
-3. **The user owns correction.** Fixing or retracting knowledge must be straightforward and auditable.
-4. **Files should stay portable.** Notes should remain readable without Galaxy.
-5. **Privacy scopes must be real.** Shared and private knowledge must be enforced by the system before multi-user use.
-
-## Focus boundary
-
-The repository-context runtime has been removed. File ranking, coding-context packets, token-budget optimization, watchers, World Model and a separate Core/OS platform are outside the current scope. Historical research is preserved in [context-retirement.md](context-retirement.md) and its archive. Reopening this scope requires an explicit owner decision.
+Владелец разрешил новый Context Builder для конкретных задач разработки. Это не восстановление удалённого контекстного ядра: World Model, Attention Engine, прежний Context Compiler, watcher/projector, глобальная оптимизация coding-контекста и Core/OS платформа не входят в работу. [История их удаления](context-retirement.md) остаётся в репозитории.
