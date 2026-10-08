@@ -69,6 +69,7 @@ async function proxy(request, context) {
     if (!token) return jsonError(503, "service_unavailable", "Galaxy local service is not ready");
 
     const { path = [] } = await context.params;
+    const choosingProject = path[0] === "projects" && path[1] === "choose";
     const target = new URL(base);
     target.pathname = `/api/v1/${path.map(encodeURIComponent).join("/")}`;
     target.search = new URL(request.url).search;
@@ -77,7 +78,13 @@ async function proxy(request, context) {
       Accept: "application/json",
       Authorization: `Bearer ${token}`,
     };
-    const init = { method: request.method, headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000) };
+    const init = {
+      method: request.method,
+      headers,
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(choosingProject ? 310_000 : 10_000),
+    };
     if (request.method !== "GET") {
       const contentType = request.headers.get("content-type") || "";
       if (!contentType.toLowerCase().includes("application/json")) {

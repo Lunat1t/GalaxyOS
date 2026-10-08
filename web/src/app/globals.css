@@ -48,7 +48,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .small-note { padding: 0 8px; }
 .muted { color: var(--muted); }
 .add-project { margin-top: 18px; padding: 12px 9px; border-top: 1px solid var(--line-soft); }
-.add-project label { display: block; margin-bottom: 8px; color: #aeb5ae; font-size: 11px; }
+.add-project-title { display: block; margin-bottom: 8px; color: #aeb5ae; font-size: 11px; }
 input, textarea { width: 100%; color: var(--text); background: #101212; border: 1px solid #303534; border-radius: 7px; }
 input { height: 36px; padding: 0 10px; font-size: 11px; }
 input::placeholder, textarea::placeholder { color: #69716c; }
@@ -192,8 +192,7 @@ h1, h2, h3, p { margin-top: 0; }
   .project-list { display: flex; gap: 5px; overflow-x: auto; margin-top: 8px; padding-bottom: 2px; }
   .project-item { flex: 0 0 auto; max-width: 165px; }
   .add-project { display: flex; align-items: center; gap: 6px; margin-top: 7px; padding: 8px 0 0; border-top: 1px solid var(--line-soft); }
-  .add-project label { display: none; }
-  .add-project input { min-width: 0; flex: 1; }
+  .add-project-title { display: none; }
   .add-project .button { width: auto; flex: 0 0 auto; margin: 0; padding: 0 9px; white-space: nowrap; }
   .topbar { min-height: 48px; padding: 0 12px; }
   .breadcrumbs { display: none; }

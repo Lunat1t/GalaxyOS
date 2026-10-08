@@ -28,7 +28,6 @@ export default function Workspace() {
   const [activeId, setActiveId] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const [path, setPath] = useState("");
   const [request, setRequest] = useState("");
   const [provider, setProvider] = useState("codex");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -94,20 +93,25 @@ export default function Workspace() {
     }
   }
 
-  async function addProject(event) {
-    event.preventDefault();
-    if (!path.trim()) return;
+  async function registerProject(projectPath) {
+    const payload = await requestJson("/api/v1/projects", {
+      method: "POST",
+      body: JSON.stringify({ path: projectPath }),
+    });
+    const projectId = payload.project.id;
+    await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/open`, { method: "POST", body: "{}" });
+    await loadProjects(projectId);
+  }
+
+  async function chooseProjectFolder() {
     setBusy(true);
     setError("");
     try {
-      const payload = await requestJson("/api/v1/projects", {
+      const selection = await requestJson("/api/v1/projects/choose", {
         method: "POST",
-        body: JSON.stringify({ path: path.trim() }),
+        body: "{}",
       });
-      const projectId = payload.project.id;
-      await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/open`, { method: "POST", body: "{}" });
-      setPath("");
-      await loadProjects(projectId);
+      if (selection.path) await registerProject(selection.path);
     } catch (cause) {
       setError(cause.message);
     } finally {
@@ -189,23 +193,16 @@ export default function Workspace() {
           {!projects.length && !loading && <p className="muted small-note">Пока нет проектов</p>}
         </div>
 
-        <form className="add-project" onSubmit={addProject}>
-          <label htmlFor="project-path">Добавить проект</label>
-          <input
-            id="project-path"
-            value={path}
-            onChange={(event) => setPath(event.target.value)}
-            placeholder="Путь к папке проекта"
-            autoComplete="off"
-          />
-          <button className="button button-secondary full-width" type="submit" disabled={busy || !path.trim()}>
-            <span>＋</span> Открыть папку
+        <div className="add-project">
+          <span className="add-project-title">Добавить проект</span>
+          <button className="button button-secondary full-width" type="button" onClick={chooseProjectFolder} disabled={busy}>
+            <span>＋</span> Выбрать папку
           </button>
-        </form>
+        </div>
 
         <div className="sidebar-bottom">
           <span className="status-dot" /> Локальный режим
-          <span className="version-label">v1.1.9 · PREVIEW</span>
+          <span className="version-label">v1.2.0 · PREVIEW</span>
         </div>
       </aside>
 
@@ -240,10 +237,9 @@ export default function Workspace() {
               <p className="eyebrow">ВАШЕ ЛОКАЛЬНОЕ ПРОСТРАНСТВО</p>
               <h1>Начните с проекта</h1>
               <p>Добавьте существующую папку. Galaxy сохранит проект и его задачи на этом устройстве.</p>
-              <form className="welcome-form" onSubmit={addProject}>
-                <input value={path} onChange={(event) => setPath(event.target.value)} placeholder="Например: ~/Projects/my-app" aria-label="Путь к папке проекта" />
-                <button className="button button-primary" type="submit" disabled={busy || !path.trim()}>Добавить проект <span>→</span></button>
-              </form>
+              <div className="welcome-form">
+                <button className="button button-primary" type="button" onClick={chooseProjectFolder} disabled={busy}>Выбрать папку проекта <span>→</span></button>
+              </div>
               <div className="local-note"><span>✦</span> Пока без подключения модели. Ваши данные остаются локальными.</div>
             </div>
           ) : (

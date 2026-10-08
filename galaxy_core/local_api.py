@@ -6,13 +6,65 @@ import hmac
 import json
 import os
 from pathlib import Path
+import shutil
 import secrets
 import socket
+import subprocess
+import sys
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from galaxy_core.projects import ProjectRegistry
 
 MAX_BODY_BYTES = 64 * 1024
+
+
+def choose_project_directory() -> str | None:
+    """Open the operating system's folder picker on the local machine."""
+    if sys.platform == "win32":
+        powershell = shutil.which("powershell") or shutil.which("pwsh")
+        if not powershell:
+            raise RuntimeError("Не удалось запустить системный выбор папки Windows.")
+        script = (
+            "Add-Type -AssemblyName System.Windows.Forms; "
+            "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog; "
+            "$dialog.Description = 'Выберите папку проекта Galaxy'; "
+            "$dialog.ShowNewFolderButton = $false; "
+            "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) "
+            "{ [Console]::WriteLine($dialog.SelectedPath) }; $dialog.Dispose()"
+        )
+        command = [powershell, "-NoProfile", "-STA", "-Command", script]
+    elif sys.platform == "darwin":
+        command = ["osascript", "-e", 'POSIX path of (choose folder with prompt "Выберите папку проекта Galaxy")']
+    else:
+        zenity = shutil.which("zenity")
+        kdialog = shutil.which("kdialog")
+        if zenity:
+            command = [zenity, "--file-selection", "--directory", "--title=Выберите папку проекта Galaxy"]
+        elif kdialog:
+            command = [kdialog, "--getexistingdirectory", str(Path.home()), "--title", "Выберите папку проекта Galaxy"]
+        else:
+            raise RuntimeError("Для выбора папки в Linux установите zenity или kdialog.")
+
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=300, check=False)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("Диалог выбора папки слишком долго оставался открытым.") from exc
+    except OSError as exc:
+        raise RuntimeError("Не удалось открыть системный диалог выбора папки.") from exc
+
+    output = result.stdout.strip()
+    if result.returncode != 0:
+        if sys.platform == "darwin" and "User canceled" in result.stderr:
+            return None
+        if not result.stderr.strip():
+            return None
+        raise RuntimeError("Системный диалог выбора папки завершился с ошибкой.")
+    if not output:
+        return None
+    selected = Path(output).expanduser().resolve()
+    if not selected.is_dir():
+        raise ValueError("Выбранная папка больше не существует.")
+    return str(selected)
 
 
 def _token_file(registry: ProjectRegistry, port: int) -> Path:
@@ -130,6 +182,9 @@ class GalaxyLocalApi:
                 registry = api.registry
                 if path == "/api/v1/health" and method == "GET":
                     return 200, {"status": "ok"}
+                if path == "/api/v1/projects/choose" and method == "POST":
+                    self._body()
+                    return 200, {"path": choose_project_directory()}
                 if path == "/api/v1/projects" and method == "GET":
                     limit = int(query.get("limit", ["20"])[0])
                     projects = [item.to_dict() for item in registry.list_recent(limit)]
@@ -186,7 +241,9 @@ class GalaxyLocalApi:
                     self._error(404, "not_found", "Project or task was not found")
                 except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
                     self._error(400, "invalid_request", str(exc))
-                except (OSError, RuntimeError):
+                except RuntimeError as exc:
+                    self._error(503, "folder_picker_unavailable", str(exc))
+                except OSError:
                     self._error(500, "internal_error", "Local API could not complete the request")
                 except Exception:
                     self._error(500, "internal_error", "Local API could not complete the request")

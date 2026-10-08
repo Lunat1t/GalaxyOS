@@ -2,7 +2,7 @@
 
 **Galaxy is a local-first second brain for people and their AI agents.** It stores useful knowledge, remembers decisions and experience, and lets the user inspect, correct, connect, or retract what it has learned.
 
-Current source version: `1.1.9` (Galaxy v1)
+Current source version: `1.2.0` (Galaxy v1)
 
 Current functionality: **local second brain and reliable memory**
 
@@ -34,6 +34,8 @@ npm run dev:galaxy
 ```
 
 Open `http://127.0.0.1:3000`. Press `Ctrl+C` to stop both services. The launcher binds the web client and API to localhost; use `GALAXY_API_PORT` or `PORT` to choose other local ports.
+
+The project button opens the system folder picker. On Linux, install `zenity` or `kdialog`; macOS and Windows use their built-in folder dialogs.
 
 To start the two processes separately instead, run the API from the repository root:
 

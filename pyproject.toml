@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "galaxy-second-brain"
-version = "1.1.9"
+version = "1.2.0"
 description = "Local-first second brain and memory system for people and AI agents"
 readme = "README.md"
 requires-python = ">=3.10"
