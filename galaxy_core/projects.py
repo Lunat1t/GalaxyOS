@@ -1,0 +1,172 @@
+"""Persistent registry of local Galaxy projects."""
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import sqlite3
+import sys
+import uuid
+
+
+def user_data_dir() -> Path:
+    """Return the per-user data directory without tying it to the install path."""
+    override = os.environ.get("GALAXY_HOME")
+    if override:
+        return Path(override).expanduser().resolve()
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+        return (Path(base) if base else Path.home() / "AppData" / "Local") / "Galaxy"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Galaxy"
+    base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+    return base.expanduser() / "galaxy"
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+@dataclass(frozen=True)
+class Project:
+    id: str
+    name: str
+    path: str
+    created_at: str
+    last_opened_at: str | None
+    settings: dict
+    is_active: bool = False
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+class ProjectRegistry:
+    """Store project locations and recent/active selection in user data."""
+
+    def __init__(self, data_dir: str | Path | None = None):
+        self.data_dir = Path(data_dir) if data_dir is not None else user_data_dir()
+        self.data_dir = self.data_dir.expanduser().resolve()
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.path = self.data_dir / "projects.sqlite3"
+        self._init_schema()
+
+    def _connect(self) -> sqlite3.Connection:
+        db = sqlite3.connect(self.path, timeout=15)
+        db.row_factory = sqlite3.Row
+        db.execute("PRAGMA foreign_keys=ON")
+        db.execute("PRAGMA journal_mode=WAL")
+        return db
+
+    def _init_schema(self) -> None:
+        with self._connect() as db:
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS projects (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    path TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL,
+                    last_opened_at TEXT,
+                    settings_json TEXT NOT NULL DEFAULT '{}'
+                );
+                CREATE TABLE IF NOT EXISTS registry_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+            """)
+
+    @staticmethod
+    def _canonical_path(path: str | Path) -> Path:
+        candidate = Path(path).expanduser()
+        try:
+            resolved = candidate.resolve(strict=True)
+        except FileNotFoundError as exc:
+            raise ValueError(f"Project directory does not exist: {candidate}") from exc
+        if not resolved.is_dir():
+            raise ValueError(f"Project path is not a directory: {resolved}")
+        return resolved
+
+    @staticmethod
+    def _project(row: sqlite3.Row, active_id: str | None = None) -> Project:
+        return Project(
+            id=row["id"], name=row["name"], path=row["path"],
+            created_at=row["created_at"], last_opened_at=row["last_opened_at"],
+            settings=json.loads(row["settings_json"]), is_active=row["id"] == active_id,
+        )
+
+    def add(self, path: str | Path = ".", name: str | None = None) -> Project:
+        directory = self._canonical_path(path)
+        timestamp = _now()
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM projects WHERE path=?", (str(directory),)).fetchone()
+            if row:
+                if name and name.strip() and name.strip() != row["name"]:
+                    db.execute("UPDATE projects SET name=? WHERE id=?", (name.strip(), row["id"]))
+                    row = db.execute("SELECT * FROM projects WHERE id=?", (row["id"],)).fetchone()
+                active = db.execute("SELECT value FROM registry_state WHERE key='active_project'").fetchone()
+                return self._project(row, active["value"] if active else None)
+            project_id = str(uuid.uuid4())
+            project_name = name.strip() if name and name.strip() else directory.name or str(directory)
+            db.execute("INSERT INTO projects(id,name,path,created_at) VALUES(?,?,?,?)",
+                       (project_id, project_name, str(directory), timestamp))
+            row = db.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+            active = db.execute("SELECT value FROM registry_state WHERE key='active_project'").fetchone()
+            return self._project(row, active["value"] if active else None)
+
+    def open(self, path_or_id: str | Path = ".") -> Project:
+        raw = str(path_or_id)
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM projects WHERE id=?", (raw,)).fetchone()
+            if row:
+                directory = Path(row["path"])
+                if not directory.is_dir():
+                    raise ValueError(f"Saved project directory is unavailable: {directory}")
+                project_id = row["id"]
+            else:
+                directory = self._canonical_path(path_or_id)
+                row = db.execute("SELECT * FROM projects WHERE path=?", (str(directory),)).fetchone()
+                if not row:
+                    project_id = str(uuid.uuid4())
+                    db.execute("INSERT INTO projects(id,name,path,created_at) VALUES(?,?,?,?)",
+                               (project_id, directory.name or str(directory), str(directory), _now()))
+                else:
+                    project_id = row["id"]
+            now = _now()
+            db.execute("UPDATE projects SET last_opened_at=? WHERE id=?", (now, project_id))
+            db.execute("INSERT INTO registry_state(key,value) VALUES('active_project',?) "
+                       "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (project_id,))
+            result = db.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+            return self._project(result, project_id)
+
+    def list_recent(self, limit: int = 20) -> list[Project]:
+        if not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        with self._connect() as db:
+            active = db.execute("SELECT value FROM registry_state WHERE key='active_project'").fetchone()
+            active_id = active["value"] if active else None
+            rows = db.execute("""
+                SELECT * FROM projects
+                ORDER BY (last_opened_at IS NULL), last_opened_at DESC, created_at DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+            return [self._project(row, active_id) for row in rows]
+
+    def current(self) -> Project | None:
+        with self._connect() as db:
+            active = db.execute("SELECT value FROM registry_state WHERE key='active_project'").fetchone()
+            if not active:
+                return None
+            row = db.execute("SELECT * FROM projects WHERE id=?", (active["value"],)).fetchone()
+            return self._project(row, active["value"]) if row else None
+
+    def save_settings(self, project_id: str, settings: dict) -> Project:
+        encoded = json.dumps(settings, ensure_ascii=False, sort_keys=True)
+        with self._connect() as db:
+            cursor = db.execute("UPDATE projects SET settings_json=? WHERE id=?", (encoded, project_id))
+            if not cursor.rowcount:
+                raise KeyError(project_id)
+            active = db.execute("SELECT value FROM registry_state WHERE key='active_project'").fetchone()
+            row = db.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+            return self._project(row, active["value"] if active else None)

@@ -2,7 +2,7 @@
 
 **Galaxy is a local-first second brain for people and their AI agents.** It stores useful knowledge, remembers decisions and experience, and lets the user inspect, correct, connect, or retract what it has learned.
 
-Current source version: `1.0.4` (Galaxy v1)
+Current source version: `1.0.5` (Galaxy v1)
 
 Current functionality: **local second brain and reliable memory**
 
@@ -25,6 +25,16 @@ Galaxy is a memory layer and workspace around the user. It does not claim that a
 python -m pip install -e .
 python galaxy.py --help
 ```
+
+Save, open, and list projects from any directory:
+
+```bash
+galaxy project add /path/to/project
+galaxy project open /path/to/project
+galaxy project list
+```
+
+The project registry is stored in the user's application data directory. `GALAXY_HOME` can override that location. Project registration is in place; the TUI and project-aware task execution are still being built.
 
 Add and search a memory:
 

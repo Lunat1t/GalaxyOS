@@ -39,6 +39,7 @@ from galaxy_core.engine.planning import (
 )
 from galaxy_core.engine.storage import VERSION, atomic_json
 from galaxy_core.migration import migrate_user_data
+from galaxy_core.projects import ProjectRegistry
 from galaxy_core.agents import (
     AgentRegistry, AutomaticTeamBuilder, MoonBudget, MoonResult,
     SubAgentManager, TeamPolicy,
@@ -630,6 +631,17 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=VERSION)
     sub = p.add_subparsers(dest="command", required=True)
 
+    # project command
+    q = sub.add_parser("project", help="open and manage recent local projects")
+    project_sub = q.add_subparsers(dest="project_action", required=True)
+    project_add = project_sub.add_parser("add", help="save a project directory")
+    project_add.add_argument("path", nargs="?", default=".")
+    project_add.add_argument("--name")
+    project_open = project_sub.add_parser("open", help="open a directory or saved project ID")
+    project_open.add_argument("target", nargs="?", default=".")
+    project_list = project_sub.add_parser("list", help="show recent projects")
+    project_list.add_argument("--limit", type=int, default=20)
+
     # plan command
     q = sub.add_parser("plan", help="decompose a goal into a validated DAG")
     q.add_argument("goal"); q.add_argument("--project", default="default")
@@ -965,6 +977,7 @@ def main() -> int:
             "dispatch", "ask", "logs",
             "guardrail", "decide", "route", "decision-stats", "vault",
             "experience-record", "experience-search", "experience-retract", "rule-suggest", "rule-eval", "rule-show", "rule-promote", "rule-disable", "decision-classify", "brain-state", "brain-reconcile",
+            "project",
         }
         if sys.argv[1] not in known_cmds:
             raw_query = sys.argv[1]
@@ -973,6 +986,20 @@ def main() -> int:
 
     args = parser().parse_args()
     try:
+        if args.command == "project":
+            projects = ProjectRegistry()
+            if args.project_action == "add":
+                result = projects.add(args.path, name=args.name)
+                print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
+                return 0
+            if args.project_action == "open":
+                result = projects.open(args.target)
+                print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
+                return 0
+            if args.project_action == "list":
+                print(json.dumps([item.to_dict() for item in projects.list_recent(args.limit)],
+                                 ensure_ascii=False, indent=2))
+                return 0
         if args.command in {"interview", "grill"}:
             return interactive_interview(args)
         if args.command in {"dispatch", "ask"}:
