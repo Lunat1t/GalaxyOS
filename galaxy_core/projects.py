@@ -12,7 +12,8 @@ import sys
 import uuid
 
 PROJECT_SETTINGS = {
-    "default_agent_id", "default_provider", "model_profile", "skills", "mcp_servers", "permissions",
+    "default_agent_id", "default_provider", "default_model", "reasoning_effort",
+    "model_profile", "skills", "mcp_servers", "permissions",
 }
 PROVIDERS = {"codex", "openrouter", "agy", "claude-code"}
 PERMISSION_VALUES = {"allow", "ask", "deny"}
@@ -283,6 +284,14 @@ class ProjectRegistry:
         for key in ("default_agent_id", "model_profile"):
             if key in settings and not isinstance(settings[key], str):
                 raise ValueError(f"{key} must be a string")
+        if "default_model" in settings:
+            model = settings["default_model"]
+            if not isinstance(model, str) or len(model) > 200 or any(char.isspace() for char in model):
+                raise ValueError("default_model must be a model ID without whitespace (up to 200 characters)")
+        if "reasoning_effort" in settings:
+            effort = settings["reasoning_effort"]
+            if not isinstance(effort, str) or effort not in {"low", "medium", "high"}:
+                raise ValueError("reasoning_effort must be low, medium, or high")
         if "default_provider" in settings:
             provider = settings["default_provider"]
             if not isinstance(provider, str) or provider not in PROVIDERS:

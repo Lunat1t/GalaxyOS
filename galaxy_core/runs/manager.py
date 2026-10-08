@@ -119,11 +119,18 @@ class RunManager:
                            (run_id, project_id, task_id, "running", timestamp, timestamp))
             self.registry.update_task(task_id, "running", run_id)
             self._append(run_id, "run.started", {"project_id": project_id, "task_id": task_id})
-            thread = threading.Thread(target=self._execute, args=(run_id, project.path, task.request), daemon=True)
+            thread = threading.Thread(
+                target=self._execute,
+                args=(run_id, project.path, task.request,
+                      project.settings.get("default_model") or None,
+                      project.settings.get("reasoning_effort", "low")),
+                daemon=True,
+            )
             thread.start()
             return self.get(run_id)
 
-    def _execute(self, run_id: str, project_path: str, prompt: str) -> None:
+    def _execute(self, run_id: str, project_path: str, prompt: str,
+                 model: str | None = None, reasoning_effort: str = "low") -> None:
         process = None
         try:
             with self._lock:
@@ -139,7 +146,9 @@ class RunManager:
                 self._append(run_id, "workspace.preparing", {"mode": "local_copy"})
                 workspace = self._make_local_copy(workspace, run_id)
                 self._append(run_id, "workspace.ready", {"mode": "local_copy"})
-            process = self.provider.start(RunRequest(prompt=prompt, workspace=workspace))
+            process = self.provider.start(RunRequest(
+                prompt=prompt, workspace=workspace, model=model, reasoning_effort=reasoning_effort,
+            ))
             with self._lock:
                 self._active[run_id] = process
                 cancel_now = run_id in self._cancel_requested
