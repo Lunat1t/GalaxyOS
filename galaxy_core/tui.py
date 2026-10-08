@@ -44,13 +44,51 @@ def _prompt(window, curses, label: str) -> str:
 def _draw(window, curses, registry: ProjectRegistry, selected: int, status: str, view: str) -> int:
     window.erase()
     height, width = window.getmaxyx()
-    if height < 8 or width < 40:
-        window.addnstr(0, 0, "Galaxy Code: окно слишком узкое. Увеличьте терминал.", max(1, width - 1))
+    if height < 8:
+        window.addnstr(0, 0, "Galaxy: увеличьте высоту терминала.", max(1, width - 1))
         window.refresh()
         return 0
 
     projects = registry.list_recent()
     selected = max(0, min(selected, len(projects) - 1)) if projects else 0
+    if width < 40:
+        project = projects[selected] if projects else registry.current()
+        window.addnstr(0, 0, "GALAXY / WORKSPACE", width - 1, curses.A_BOLD)
+        window.addnstr(1, 0, VIEW_TITLES.get(view, VIEW_TITLES["overview"]), width - 1, curses.A_BOLD)
+        if project:
+            window.addnstr(2, 0, f"Проект {selected + 1}/{len(projects)}: {project.name}", width - 1)
+            if view == "overview":
+                lines = [project.path, "Git: " + _branch(project.path),
+                         "Агент: " + project.settings.get("default_agent_id", "не выбран")]
+                tasks = registry.list_tasks(project.id, limit=max(1, min(5, height - 7)))
+                lines.append("ЗАДАЧИ:")
+                lines.extend(f"[{task.status}] {task.request}" for task in tasks)
+            elif view == "project":
+                lines = ["Путь: " + project.path, "Git: " + _branch(project.path)]
+            elif view == "agents":
+                lines = ["По умолчанию: " + project.settings.get("default_agent_id", "не выбран"),
+                         "Профили агентов будут подключены отдельно."]
+            elif view == "models":
+                lines = ["Провайдер: " + project.settings.get("default_provider", "не выбран"),
+                         "Модель: " + project.settings.get("model_profile", "не выбрана")]
+            elif view == "integrations":
+                lines = ["Skills: " + ", ".join(project.settings.get("skills", [])),
+                         "MCP: " + ", ".join(project.settings.get("mcp_servers", []))]
+            elif view == "permissions":
+                lines = [f"{key}: {value}" for key, value in
+                         sorted(project.settings.get("permissions", {}).items())] or ["Не заданы"]
+            else:
+                lines = json.dumps(project.settings, ensure_ascii=False).splitlines() or ["Не заданы"]
+            for index, line in enumerate(lines[:max(0, height - 5)]):
+                window.addnstr(3 + index, 0, line, width - 1)
+        else:
+            window.addnstr(2, 0, "Нажмите O, чтобы открыть каталог", width - 1)
+        window.addnstr(height - 2, 0, "↑↓ проект Enter O/A T задача Tab раздел Q", width - 1, curses.A_DIM)
+        if status:
+            window.addnstr(height - 1, 0, status, width - 1)
+        window.refresh()
+        return len(projects)
+
     split = max(22, min(width // 3, 34))
     window.addnstr(0, 0, "GALAXY CODE  /  WORKSPACE", width - 1, curses.A_BOLD)
     window.addnstr(1, 0, "Текущий: " + (registry.current().name if registry.current() else "не выбран"), split - 2)
