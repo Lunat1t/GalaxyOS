@@ -127,14 +127,18 @@ class RunManager:
             status = "completed"
             final_payload = {}
             for event in process.events():
-                self._record_provider_event(run_id, event)
                 if event.kind == "error":
-                    status = "failed"
-                    final_payload = {"code": event.error_code or "provider_failed"}
-                    break
+                    if status != "failed":
+                        status = "failed"
+                        final_payload = {
+                            "code": event.error_code or "provider_failed",
+                            "message": _redact_message(event.message or "Причина отказа не указана Codex CLI."),
+                        }
+                    continue
                 if event.kind == "cancelled":
                     status = "cancelled"
                     break
+                self._record_provider_event(run_id, event)
             self._finish(run_id, status, final_payload)
         except Exception as exc:
             if process is not None:

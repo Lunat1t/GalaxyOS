@@ -60,7 +60,11 @@ class CodexRun:
                 yield ProviderEvent("cancelled")
             else:
                 # stderr may contain paths or sensitive provider diagnostics; don't persist it.
-                yield ProviderEvent("error", error_code="provider_failed")
+                yield ProviderEvent(
+                    "error",
+                    message=f"Codex CLI завершился с кодом {return_code} без подробного сообщения.",
+                    error_code="provider_failed",
+                )
         finally:
             if self._process.stdout:
                 self._process.stdout.close()
@@ -90,8 +94,16 @@ def _normalize_event(raw: object) -> ProviderEvent | None:
             output_tokens=_nonnegative_int(usage.get("output_tokens")),
         )
     if kind == "error" or kind == "turn.failed":
-        # Never expose raw provider error payloads in the app event log.
-        return ProviderEvent("error", error_code="provider_failed")
+        detail = raw.get("error")
+        if not isinstance(detail, dict):
+            detail = raw
+        message = detail.get("message")
+        code = detail.get("code") or detail.get("codexErrorInfo")
+        return ProviderEvent(
+            "error",
+            message=message[:2000] if isinstance(message, str) else None,
+            error_code=code[:100] if isinstance(code, str) else "provider_failed",
+        )
     return None
 
 

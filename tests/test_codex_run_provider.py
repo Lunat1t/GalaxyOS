@@ -62,6 +62,23 @@ class CodexRunProviderTests(unittest.TestCase):
         self.assertEqual(actual[1].output_tokens, 4)
         self.assertEqual(actual[1].result, {"text": "Done"})
 
+    def test_preserves_codex_failure_reason_for_the_run_log(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", str(root)], check=True, capture_output=True)
+            executable = root / "fake-codex"
+            failure = {"type": "turn.failed", "error": {"message": "Authentication expired"}}
+            executable.write_text(
+                f"#!{sys.executable}\nimport json,sys\nprint(json.dumps({failure!r}))\nsys.exit(1)\n",
+                encoding="utf-8",
+            )
+            executable.chmod(0o700)
+            run = CodexRunProvider(str(executable)).start(RunRequest("task", root))
+            errors = [event for event in run.events() if event.kind == "error"]
+
+        self.assertEqual(errors[0].message, "Authentication expired")
+        self.assertEqual(errors[0].error_code, "provider_failed")
+
     def test_rejects_empty_prompt_and_missing_workspace(self):
         provider = CodexRunProvider(sys.executable)
         with tempfile.TemporaryDirectory() as directory:
@@ -125,6 +142,40 @@ class CodexRunProviderTests(unittest.TestCase):
             self.assertEqual(registry.get_task(task.id).latest_run_id, run["id"])
             reopened = RunManager(ProjectRegistry(root / "data"), FakeProvider())
             self.assertEqual(reopened.get(run["id"])["status"], "completed")
+
+    def test_run_manager_keeps_safe_provider_failure_message(self):
+        class FailedRun:
+            def events(self):
+                yield ProviderEvent("error", message="Authentication expired api_key=sk-123456789012345678901234")
+
+            def cancel(self):
+                return None
+
+        class FailedProvider:
+            def available(self):
+                return True
+
+            def start(self, request):
+                return FailedRun()
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project_path = root / "project"
+            project_path.mkdir()
+            subprocess.run(["git", "init", str(project_path)], check=True, capture_output=True)
+            registry = ProjectRegistry(root / "data")
+            project = registry.add(project_path)
+            task = registry.create_task(project.id, "Проверочная задача")
+            manager = RunManager(registry, FailedProvider())
+            run = manager.start(project.id, task.id)
+            deadline = time.monotonic() + 3
+            while manager.get(run["id"])["status"] == "running" and time.monotonic() < deadline:
+                time.sleep(0.01)
+
+            failure = manager.events(run["id"])[-1]
+            self.assertEqual(failure["event_type"], "run.failed")
+            self.assertIn("Authentication expired", failure["payload"]["message"])
+            self.assertNotIn("sk-123456789012345678901234", failure["payload"]["message"])
 
 
 if __name__ == "__main__":
