@@ -1,7 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import ModelPicker from "../components/ui/model-picker";
+import { defaultModelProviders, ModelPicker } from "@/components/ui/model-picker";
+
+const AUTO_CODEX_MODEL = "galaxy-codex-auto";
+const codexModelProviders = [{
+  ...defaultModelProviders[0],
+  name: "Codex CLI",
+  models: [
+    {
+      id: AUTO_CODEX_MODEL,
+      name: "Автоматически",
+      description: "Модель выбирается в настройках Codex CLI",
+      capabilities: ["reasoning"],
+      thinking: ["low", "medium", "high"],
+      defaultThinking: "low",
+    },
+    ...defaultModelProviders[0].models,
+  ],
+}];
 
 async function requestJson(url, options) {
   const response = await fetch(url, {
@@ -115,7 +132,11 @@ export default function Workspace() {
   async function saveModelSettings(projectId) {
     await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/settings`, {
       method: "PATCH",
-      body: JSON.stringify({ default_provider: "codex", default_model: model.trim(), reasoning_effort: effort }),
+      body: JSON.stringify({
+        default_provider: "codex",
+        default_model: model === AUTO_CODEX_MODEL ? "" : model.trim(),
+        reasoning_effort: effort,
+      }),
     });
   }
 
@@ -187,7 +208,19 @@ export default function Workspace() {
               <button className={`ask-project-chip ${activeProject ? "is-selected" : ""}`} type="button" onClick={chooseProjectFolder} disabled={busy} title={activeProject?.path || "Выбрать папку проекта"}>
                 <span>⌂</span><span className="ask-project-name">{activeProject?.name || "Выбрать папку"}</span><span className="ask-chip-caret">⌄</span>
               </button>
-              <ModelPicker value={model} effort={effort} disabled={busy} onChange={({ model: nextModel, effort: nextEffort }) => { setModel(nextModel); setEffort(nextEffort); }} />
+              <ModelPicker
+                providers={codexModelProviders}
+                value={model || AUTO_CODEX_MODEL}
+                thinking={effort}
+                disabled={busy}
+                placeholder="Выбрать модель"
+                side="top"
+                align="start"
+                onValueChange={(modelId, _providerId, nextEffort) => {
+                  setModel(modelId === AUTO_CODEX_MODEL ? "" : modelId);
+                  if (nextEffort) setEffort(nextEffort);
+                }}
+              />
             </div>
             <div className="ask-toolbar-right"><span className="ask-shortcut">Enter ↵</span><button className="ask-send" type="submit" disabled={busy || loading || !activeProject || !request.trim()} aria-label="Отправить запрос">{busy ? "…" : "↑"}</button></div>
           </div>

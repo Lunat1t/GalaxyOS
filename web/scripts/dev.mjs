@@ -84,7 +84,7 @@ apiProcess.stdout.on("data", (chunk) => {
   if (!nextProcess && !stopping && apiOutputTail.includes("Galaxy local API listening at")) {
     const nextBin = resolve(webDir, "node_modules/next/dist/bin/next");
     nextExited = false;
-    nextProcess = spawn(process.execPath, [nextBin, "dev", "--hostname", "127.0.0.1", "--port", String(webPort)], {
+    nextProcess = spawn(process.execPath, [nextBin, "dev", "--webpack", "--hostname", "127.0.0.1", "--port", String(webPort)], {
       cwd: webDir,
       env: { ...environment, NEXT_TELEMETRY_DISABLED: "1" },
       stdio: "inherit",

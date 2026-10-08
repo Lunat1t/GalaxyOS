@@ -290,8 +290,8 @@ class ProjectRegistry:
                 raise ValueError("default_model must be a model ID without whitespace (up to 200 characters)")
         if "reasoning_effort" in settings:
             effort = settings["reasoning_effort"]
-            if not isinstance(effort, str) or effort not in {"low", "medium", "high"}:
-                raise ValueError("reasoning_effort must be low, medium, or high")
+            if not isinstance(effort, str) or effort not in {"none", "low", "medium", "high", "max"}:
+                raise ValueError("reasoning_effort must be none, low, medium, high, or max")
         if "default_provider" in settings:
             provider = settings["default_provider"]
             if not isinstance(provider, str) or provider not in PROVIDERS:

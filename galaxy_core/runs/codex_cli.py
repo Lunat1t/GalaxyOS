@@ -150,8 +150,8 @@ class CodexRunProvider:
         command += ["--sandbox", "workspace-write", "--cd", str(workspace)]
         if request.model:
             command += ["--model", request.model]
-        if request.reasoning_effort not in {"low", "medium", "high"}:
-            raise ValueError("Уровень рассуждений Codex должен быть low, medium или high.")
+        if request.reasoning_effort not in {"none", "low", "medium", "high", "max"}:
+            raise ValueError("Уровень рассуждений Codex не поддерживается.")
         command += ["--config", f'model_reasoning_effort="{request.reasoning_effort}"']
         command.append(request.prompt)
         process = subprocess.Popen(
